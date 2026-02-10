@@ -1,0 +1,15 @@
+APP_ENV=prod
+HTTP_ADDR=:8080
+# Railway injeta PORT; manter por compatibilidade
+PORT=8080
+
+# Se estiver na Railway com MySQL service, os valores abaixo serão preenchidos pelas variáveis MYSQL*
+DB_HOST=
+DB_PORT=
+DB_USER=
+DB_PASS=
+DB_NAME=
+
+JWT_SECRET=defina_um_seguro
+JWT_ISSUER=saas-api
+JWT_TTL_MINUTES=60

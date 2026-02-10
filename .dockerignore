@@ -1,0 +1,12 @@
+.DS_Store
+node_modules
+web/node_modules
+web/dist
+bin
+*.log
+*.tmp
+*.swp
+.idea
+.vscode
+coverage
+.git

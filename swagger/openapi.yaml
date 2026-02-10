@@ -1,0 +1,617 @@
+openapi: 3.0.3
+info:
+  title: SaaS API
+  version: 1.0.0
+  description: API para Finance + HR multi-tenant
+servers:
+  - url: http://localhost:8080/v1
+    description: Local dev
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AuthResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        tenant_id: { type: integer, format: int64 }
+        user_id: { type: integer, format: int64 }
+        role: { type: string, enum: [owner, hr, finance, member] }
+    Member:
+      type: object
+      properties:
+        user_id: { type: integer }
+        email: { type: string }
+        name: { type: string }
+        role: { type: string }
+        created_at: { type: string, format: date-time }
+    Department:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        code: { type: string, nullable: true }
+    Position:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        level: { type: string, nullable: true }
+        department_id: { type: integer, nullable: true }
+    Employee:
+      type: object
+      properties:
+        id: { type: integer }
+        employee_code: { type: string }
+        name: { type: string }
+        email: { type: string, nullable: true }
+        status: { type: string }
+        hire_date: { type: string, format: date, nullable: true }
+        department_id: { type: integer, nullable: true }
+        position_id: { type: integer, nullable: true }
+        salary_cents: { type: integer }
+    Vendor:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        document: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+    Customer:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        document: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+    Payable:
+      type: object
+      properties:
+        id: { type: integer }
+        vendor_id: { type: integer }
+        amount_cents: { type: integer }
+        currency: { type: string }
+        due_date: { type: string, format: date }
+        status: { type: string }
+        reference: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        cost_center_id: { type: integer, nullable: true }
+    Receivable:
+      type: object
+      properties:
+        id: { type: integer }
+        customer_id: { type: integer }
+        amount_cents: { type: integer }
+        currency: { type: string }
+        due_date: { type: string, format: date }
+        status: { type: string }
+        reference: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        cost_center_id: { type: integer, nullable: true }
+    CostCenter:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        code: { type: string, nullable: true }
+paths:
+  /health:
+    get:
+      tags: [public]
+      summary: Healthcheck
+      responses:
+        '200': { description: ok }
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Registrar tenant + owner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [company_name, name, email, password]
+              properties:
+                company_name: { type: string }
+                name: { type: string }
+                email: { type: string }
+                password: { type: string, format: password }
+      responses:
+        '201':
+          description: criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+  /me:
+    get:
+      security: [{ bearerAuth: [] }]
+      tags: [auth]
+      summary: Dados do token atual
+      responses:
+        '200': { description: ok }
+  /departments:
+    get:
+      security: [{ bearerAuth: [] }]
+      tags: [hr]
+      summary: Listar departamentos
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Department' }
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [hr]
+      summary: Criar departamento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                code: { type: string, nullable: true }
+      responses:
+        '201': { description: criado }
+  /positions:
+    get:
+      security: [{ bearerAuth: [] }]
+      tags: [hr]
+      summary: Listar cargos
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Position' }
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [hr]
+      summary: Criar cargo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string }
+                level: { type: string, nullable: true }
+                department_id: { type: integer, nullable: true }
+      responses:
+        '201': { description: criado }
+  /employees:
+    get:
+      security: [{ bearerAuth: [] }]
+      tags: [hr]
+      summary: Listar colaboradores
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [active, inactive, terminated] }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Employee' }
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [hr]
+      summary: Criar colaborador
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                email: { type: string }
+                status: { type: string }
+                hire_date: { type: string, format: date }
+                salary_cents: { type: integer }
+                department_id: { type: integer }
+                position_id: { type: integer }
+      responses:
+        '201': { description: criado }
+  /vendors:
+    get:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ap]
+      summary: Listar fornecedores
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Vendor' }
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ap]
+      summary: Criar fornecedor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                document: { type: string }
+                email: { type: string }
+                phone: { type: string }
+      responses:
+        '201': { description: criado }
+  /payables:
+    get:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ap]
+      summary: Listar payables
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Payable' }
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ap]
+      summary: Criar payable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vendor_id, amount_cents, due_date]
+              properties:
+                vendor_id: { type: integer }
+                amount_cents: { type: integer }
+                due_date: { type: string, format: date }
+                currency: { type: string }
+                reference: { type: string }
+                description: { type: string }
+      responses:
+        '201': { description: criado }
+  /payables/{id}:
+    patch:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ap]
+      summary: Atualizar centro de custo do payable
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cost_center_id: { type: integer, nullable: true }
+      responses:
+        '200': { description: ok }
+  /payables/{id}/submit:
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ap]
+      summary: Submeter payable para aprovacao
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: ok }
+  /payables/{id}/approve:
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ap]
+      summary: Aprovar payable
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: ok }
+  /payables/{id}/reject:
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ap]
+      summary: Rejeitar payable
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: ok }
+  /payables/{id}/mark-paid:
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ap]
+      summary: Marcar payable como pago
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: ok }
+  /cost-centers:
+    get:
+      security: [{ bearerAuth: [] }]
+      tags: [finance]
+      summary: Listar centros de custo
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CostCenter' }
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [finance]
+      summary: Criar centro de custo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                code: { type: string }
+      responses:
+        '201': { description: criado }
+  /dashboard/finance/summary:
+    get:
+      security: [{ bearerAuth: [] }]
+      tags: [finance]
+      summary: Resumo financeiro
+      parameters:
+        - in: query
+          name: cost_center_id
+          schema: { type: string }
+      responses:
+        '200': { description: ok }
+  /customers:
+    get:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ar]
+      summary: Listar clientes
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Customer' }
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ar]
+      summary: Criar cliente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                document: { type: string }
+                email: { type: string }
+                phone: { type: string }
+      responses:
+        '201': { description: criado }
+  /receivables:
+    get:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ar]
+      summary: Listar recebiveis
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Receivable' }
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ar]
+      summary: Criar recebivel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customer_id, amount_cents, due_date]
+              properties:
+                customer_id: { type: integer }
+                amount_cents: { type: integer }
+                due_date: { type: string, format: date }
+                currency: { type: string }
+                reference: { type: string }
+                description: { type: string }
+      responses:
+        '201': { description: criado }
+  /receivables/{id}:
+    patch:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ar]
+      summary: Atualizar centro de custo do recebivel
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cost_center_id: { type: integer, nullable: true }
+      responses:
+        '200': { description: ok }
+  /receivables/{id}/issue:
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ar]
+      summary: Emitir recebivel
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: ok }
+  /receivables/{id}/cancel:
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ar]
+      summary: Cancelar recebivel
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: ok }
+  /receivables/{id}/mark-received:
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [finance-ar]
+      summary: Marcar recebivel como recebido
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: ok }
+  /members:
+    get:
+      security: [{ bearerAuth: [] }]
+      tags: [members]
+      summary: Listar membros do tenant
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Member' }
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [members]
+      summary: Criar/atualizar membro
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string }
+                name: { type: string }
+                password: { type: string }
+                role: { type: string }
+      responses:
+        '201': { description: criado }
+  /members/{user_id}:
+    patch:
+      security: [{ bearerAuth: [] }]
+      tags: [members]
+      summary: Atualizar role
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string }
+      responses:
+        '204': { description: atualizado }
+    delete:
+      security: [{ bearerAuth: [] }]
+      tags: [members]
+      summary: Remover membro
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '204': { description: removido }
