@@ -23,10 +23,12 @@ export function HRPage() {
   const [timeEmp, setTimeEmp] = useState<string>("");
   const [timeFrom, setTimeFrom] = useState<string>("");
   const [timeTo, setTimeTo] = useState<string>("");
+  const [loading, setLoading] = useState(false);
 
   const toArray = <T,>(v: T[] | null | undefined): T[] => (Array.isArray(v) ? v : []);
 
   const loadAll = async () => {
+    setLoading(true);
     try {
       const [d, p, e] = await Promise.all([
         request<Department[]>("/departments"),
@@ -38,6 +40,8 @@ export function HRPage() {
       setEmployees(toArray(e));
     } catch (err: any) {
       toast({ title: "Erro ao carregar HR", description: err.message, variant: "error" });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -64,7 +68,7 @@ export function HRPage() {
       await request("/departments", { method: "POST", body: { name: fd.get("name"), code: fd.get("code") || null } });
       toast({ title: "Departamento criado", variant: "success" });
       e.currentTarget.reset();
-      loadAll();
+      await loadAll();
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "error" }); }
   };
 
@@ -82,7 +86,7 @@ export function HRPage() {
       });
       toast({ title: "Cargo criado", variant: "success" });
       e.currentTarget.reset();
-      loadAll();
+      await loadAll();
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "error" }); }
   };
 
@@ -104,7 +108,7 @@ export function HRPage() {
       });
       toast({ title: "Colaborador criado", variant: "success" });
       e.currentTarget.reset();
-      loadAll();
+      await loadAll();
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "error" }); }
   };
 
@@ -129,7 +133,7 @@ export function HRPage() {
       await request(type === "in" ? "/time-entries/clock-in" : "/time-entries/clock-out", { method: "POST", body });
       toast({ title: type === "in" ? "Entrada registrada" : "Saída registrada", variant: "success" });
       e.currentTarget.reset();
-      loadTimeEntries();
+      await loadTimeEntries();
     } catch (err: any) {
       toast({ title: "Erro ao registrar ponto", description: err.message, variant: "error" });
     }
@@ -141,12 +145,17 @@ export function HRPage() {
         title="RH"
         subtitle="Cadastre departamentos, cargos e colaboradores com status."
         actions={
-          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-48">
-            <option value="">Status: todos</option>
-            <option value="active">Ativos</option>
-            <option value="inactive">Inativos</option>
-            <option value="terminated">Demitidos</option>
-          </Select>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => { loadAll(); loadTimeEntries(); }} disabled={loading}>
+              Atualizar
+            </Button>
+            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-48">
+              <option value="">Status: todos</option>
+              <option value="active">Ativos</option>
+              <option value="inactive">Inativos</option>
+              <option value="terminated">Demitidos</option>
+            </Select>
+          </div>
         }
       />
 
