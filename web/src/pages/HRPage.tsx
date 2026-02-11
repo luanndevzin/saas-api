@@ -108,7 +108,7 @@ export function HRPage() {
     return canvas.toDataURL("image/jpeg", 0.9);
   };
 
-  const handleFace = async (mode: "register" | "verify") => {
+  const handleFaceClockAuto = async () => {
     if (!faceEmployee) {
       toast({ title: "Selecione um colaborador", variant: "error" });
       return;
@@ -118,54 +118,37 @@ export function HRPage() {
       toast({ title: "Não foi possível capturar imagem", variant: "error" });
       return;
     }
+    const empId = Number(faceEmployee);
     setFaceLoading(true);
     setFaceResult("");
-    try {
-      const body = { employee_id: Number(faceEmployee), image_base64: img };
-      const res = await request<{ match?: boolean; distance?: number; phash?: number }>(mode === "register" ? "/face/register" : "/face/verify", {
-        method: "POST",
-        body,
-      });
-      if (mode === "register") {
-        setFaceResult("Template salvo");
-      } else {
-        const matchText = res?.match ? "Match" : "Não bateu";
-        setFaceResult(`${matchText} (dist=${res?.distance ?? "?"})`);
-      }
-      toast({ title: "OK", variant: "success" });
-    } catch (err: any) {
-      toast({ title: "Erro", description: err.message, variant: "error" });
-    } finally {
-      setFaceLoading(false);
-    }
-  };
 
-  const handleFaceClock = async () => {
-    if (!faceEmployee) {
-      toast({ title: "Selecione um colaborador", variant: "error" });
-      return;
-    }
-    const img = captureBase64();
-    if (!img) {
-      toast({ title: "Não foi possível capturar imagem", variant: "error" });
-      return;
-    }
-    setFaceLoading(true);
-    setFaceResult("");
-    try {
-      await request("/face/clock", {
+    const doClock = async () => {
+      const te = await request<any>("/face/clock", {
         method: "POST",
-        body: {
-          employee_id: Number(faceEmployee),
-          image_base64: img,
-          note: "facial auto",
-        },
+        body: { employee_id: empId, image_base64: img, note: "facial auto" },
       });
-      setFaceResult("Batida registrada via face");
-      toast({ title: "Batida registrada", variant: "success" });
+      const closed = te?.clock_out;
+      const when = closed ? te.clock_out : te.clock_in;
+      setFaceResult(`${closed ? "Saída" : "Entrada"} registrada (${formatDateTime(when)})`);
       await loadTimeEntries();
+    };
+
+    try {
+      await doClock();
+      toast({ title: "Batida registrada", variant: "success" });
     } catch (err: any) {
-      toast({ title: "Erro ao bater ponto com face", description: err.message, variant: "error" });
+      // Se não existir template, registra e tenta de novo
+      if (err?.status === 404) {
+        try {
+          await request("/face/register", { method: "POST", body: { employee_id: empId, image_base64: img } });
+          await doClock();
+          toast({ title: "Face registrada e batida feita", variant: "success" });
+        } catch (err2: any) {
+          toast({ title: "Erro ao registrar/bater ponto", description: err2.message, variant: "error" });
+        }
+      } else {
+        toast({ title: "Erro ao bater ponto com face", description: err?.message, variant: "error" });
+      }
     } finally {
       setFaceLoading(false);
     }
@@ -517,9 +500,7 @@ export function HRPage() {
                   <Button type="button" size="sm" variant="outline" onClick={cameraOn ? stopCamera : startCamera}>
                     {cameraOn ? "Parar câmera" : "Iniciar câmera"}
                   </Button>
-                  <Button type="button" size="sm" onClick={() => handleFace("register")} disabled={faceLoading}>Registrar face</Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => handleFace("verify")} disabled={faceLoading}>Verificar face</Button>
-                  <Button type="button" size="sm" variant="default" onClick={handleFaceClock} disabled={faceLoading}>Bater ponto (face)</Button>
+                  <Button type="button" size="sm" variant="default" onClick={handleFaceClockAuto} disabled={faceLoading}>Registrar face e bater ponto</Button>
                 </div>
                 {cameraError && <div className="text-xs text-destructive">{cameraError}</div>}
                 <div className="rounded-lg border border-border/60 bg-background/80 p-2 flex flex-col items-center">
