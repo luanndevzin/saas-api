@@ -13,7 +13,7 @@ import (
 	mw "saas-api/internal/http/middleware"
 )
 
-func NewRouter(db *sqlx.DB, log zerolog.Logger, jwtSecret []byte, jwtIssuer string, jwtTTLMinutes int) http.Handler {
+func NewRouter(db *sqlx.DB, log zerolog.Logger, jwtSecret []byte, jwtIssuer string, jwtTTLMinutes int, faceThreshold int) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(cors.Handler(cors.Options{
@@ -77,7 +77,7 @@ func NewRouter(db *sqlx.DB, log zerolog.Logger, jwtSecret []byte, jwtIssuer stri
 				r.Post("/time-entries", te.Create)
 				r.Get("/time-entries", te.List)
 
-				face := &handlers.FaceHandler{DB: db}
+				face := &handlers.FaceHandler{DB: db, Threshold: faceThreshold}
 				r.Post("/face/register", face.Register)
 				r.Post("/face/verify", face.Verify)
 

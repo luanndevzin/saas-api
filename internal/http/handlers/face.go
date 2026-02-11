@@ -28,7 +28,8 @@ type faceTemplate struct {
 }
 
 type FaceHandler struct {
-	DB *sqlx.DB
+	DB        *sqlx.DB
+	Threshold int
 }
 
 type faceRegisterReq struct {
@@ -149,5 +150,9 @@ func (h *FaceHandler) verifyInternal(ctx context.Context, tenantID, employeeID u
 	if err != nil {
 		return false, 0, err
 	}
-	return dist <= 12, dist, nil
+	th := h.Threshold
+	if th <= 0 {
+		th = 12
+	}
+	return dist <= th, dist, nil
 }
