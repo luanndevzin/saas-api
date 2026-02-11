@@ -140,6 +140,37 @@ export function HRPage() {
     }
   };
 
+  const handleFaceClock = async () => {
+    if (!faceEmployee) {
+      toast({ title: "Selecione um colaborador", variant: "error" });
+      return;
+    }
+    const img = captureBase64();
+    if (!img) {
+      toast({ title: "Não foi possível capturar imagem", variant: "error" });
+      return;
+    }
+    setFaceLoading(true);
+    setFaceResult("");
+    try {
+      await request("/face/clock", {
+        method: "POST",
+        body: {
+          employee_id: Number(faceEmployee),
+          image_base64: img,
+          note: "facial auto",
+        },
+      });
+      setFaceResult("Batida registrada via face");
+      toast({ title: "Batida registrada", variant: "success" });
+      await loadTimeEntries();
+    } catch (err: any) {
+      toast({ title: "Erro ao bater ponto com face", description: err.message, variant: "error" });
+    } finally {
+      setFaceLoading(false);
+    }
+  };
+
   const createDept = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -488,6 +519,7 @@ export function HRPage() {
                   </Button>
                   <Button type="button" size="sm" onClick={() => handleFace("register")} disabled={faceLoading}>Registrar face</Button>
                   <Button type="button" size="sm" variant="secondary" onClick={() => handleFace("verify")} disabled={faceLoading}>Verificar face</Button>
+                  <Button type="button" size="sm" variant="default" onClick={handleFaceClock} disabled={faceLoading}>Bater ponto (face)</Button>
                 </div>
                 {cameraError && <div className="text-xs text-destructive">{cameraError}</div>}
                 <div className="rounded-lg border border-border/60 bg-background/80 p-2 flex flex-col items-center">
