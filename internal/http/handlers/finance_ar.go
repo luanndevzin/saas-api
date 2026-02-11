@@ -258,7 +258,7 @@ func (h *FinanceARHandler) CreateReceivable(w http.ResponseWriter, r *http.Reque
 
 	var rec Receivable
 	if err := tx.Get(&rec, `
-		SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, created_at, updated_at
+		SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, cost_center_id, created_at, updated_at
 		FROM receivables WHERE tenant_id=? AND id=?`, tenantID, id64); err != nil {
 		http.Error(w, "db read error", 500)
 		return
@@ -288,14 +288,14 @@ func (h *FinanceARHandler) ListReceivables(w http.ResponseWriter, r *http.Reques
 	items := make([]Receivable, 0)
 	if status == "" {
 		if err := h.DB.Select(&items, `
-			SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, created_at, updated_at
+			SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, cost_center_id, created_at, updated_at
 			FROM receivables WHERE tenant_id=? ORDER BY id DESC`, tenantID); err != nil {
 			http.Error(w, "db error", 500)
 			return
 		}
 	} else {
 		if err := h.DB.Select(&items, `
-			SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, created_at, updated_at
+			SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, cost_center_id, created_at, updated_at
 			FROM receivables WHERE tenant_id=? AND status=? ORDER BY id DESC`, tenantID, status); err != nil {
 			http.Error(w, "db error", 500)
 			return
@@ -326,7 +326,7 @@ func (h *FinanceARHandler) CancelReceivable(w http.ResponseWriter, r *http.Reque
 
 	var before Receivable
 	if err := tx.Get(&before, `
-		SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, created_at, updated_at
+		SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, cost_center_id, created_at, updated_at
 		FROM receivables WHERE tenant_id=? AND id=?`, tenantID, id); err != nil {
 		http.Error(w, "receivable not found", 404)
 		return
@@ -347,7 +347,7 @@ func (h *FinanceARHandler) CancelReceivable(w http.ResponseWriter, r *http.Reque
 
 	var after Receivable
 	_ = tx.Get(&after, `
-		SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, created_at, updated_at
+		SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, cost_center_id, created_at, updated_at
 		FROM receivables WHERE tenant_id=? AND id=?`, tenantID, id)
 
 	_ = insertAudit(tx, r, tenantID, userID, "update", "receivables", toInt64(id), before, after)
@@ -376,7 +376,7 @@ func (h *FinanceARHandler) MarkReceived(w http.ResponseWriter, r *http.Request) 
 
 	var before Receivable
 	if err := tx.Get(&before, `
-		SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, created_at, updated_at
+		SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, cost_center_id, created_at, updated_at
 		FROM receivables WHERE tenant_id=? AND id=?`, tenantID, id); err != nil {
 		http.Error(w, "receivable not found", 404)
 		return
@@ -401,7 +401,7 @@ func (h *FinanceARHandler) MarkReceived(w http.ResponseWriter, r *http.Request) 
 
 	var after Receivable
 	_ = tx.Get(&after, `
-		SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, created_at, updated_at
+		SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, cost_center_id, created_at, updated_at
 		FROM receivables WHERE tenant_id=? AND id=?`, tenantID, id)
 
 	_ = insertAudit(tx, r, tenantID, userID, "update", "receivables", toInt64(id), before, after)
@@ -447,7 +447,7 @@ func (h *FinanceARHandler) transition(w http.ResponseWriter, r *http.Request, fr
 
 	var before Receivable
 	if err := tx.Get(&before, `
-		SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, created_at, updated_at
+		SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, cost_center_id, created_at, updated_at
 		FROM receivables WHERE tenant_id=? AND id=?`, tenantID, id); err != nil {
 		http.Error(w, "receivable not found", 404)
 		return
@@ -468,7 +468,7 @@ func (h *FinanceARHandler) transition(w http.ResponseWriter, r *http.Request, fr
 
 	var after Receivable
 	_ = tx.Get(&after, `
-		SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, created_at, updated_at
+		SELECT id, tenant_id, customer_id, reference, description, amount_cents, currency, due_date, received_at, received_method, status, cost_center_id, created_at, updated_at
 		FROM receivables WHERE tenant_id=? AND id=?`, tenantID, id)
 
 	_ = insertAudit(tx, r, tenantID, userID, "update", "receivables", toInt64(id), before, after)

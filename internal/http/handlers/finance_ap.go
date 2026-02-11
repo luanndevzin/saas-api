@@ -257,7 +257,7 @@ func (h *FinanceAPHandler) CreatePayable(w http.ResponseWriter, r *http.Request)
 
 	var p Payable
 	if err := tx.Get(&p, `
-		SELECT id, tenant_id, vendor_id, reference, description, amount_cents, currency, due_date, paid_at, status, created_at, updated_at
+		SELECT id, tenant_id, vendor_id, reference, description, amount_cents, currency, due_date, paid_at, status, cost_center_id, created_at, updated_at
 		FROM payables WHERE tenant_id=? AND id=?`, tenantID, id64); err != nil {
 		http.Error(w, "db read error", 500)
 		return
@@ -298,7 +298,7 @@ ORDER BY id DESC
 		}
 	} else {
 		if err := h.DB.Select(&items, `
-			SELECT id, tenant_id, vendor_id, reference, description, amount_cents, currency, due_date, paid_at, status, created_at, updated_at
+			SELECT id, tenant_id, vendor_id, reference, description, amount_cents, currency, due_date, paid_at, status, cost_center_id, created_at, updated_at
 			FROM payables WHERE tenant_id=? AND status=? ORDER BY id DESC`, tenantID, status); err != nil {
 			http.Error(w, "db error", 500)
 			return
@@ -334,7 +334,7 @@ func (h *FinanceAPHandler) MarkPaid(w http.ResponseWriter, r *http.Request) {
 
 	var p Payable
 	if err := tx.Get(&p, `
-		SELECT id, tenant_id, vendor_id, reference, description, amount_cents, currency, due_date, paid_at, status, created_at, updated_at
+		SELECT id, tenant_id, vendor_id, reference, description, amount_cents, currency, due_date, paid_at, status, cost_center_id, created_at, updated_at
 		FROM payables WHERE tenant_id=? AND id=?`, tenantID, id); err != nil {
 		http.Error(w, "payable not found", 404)
 		return
@@ -357,7 +357,7 @@ func (h *FinanceAPHandler) MarkPaid(w http.ResponseWriter, r *http.Request) {
 
 	var after Payable
 	_ = tx.Get(&after, `
-		SELECT id, tenant_id, vendor_id, reference, description, amount_cents, currency, due_date, paid_at, status, created_at, updated_at
+		SELECT id, tenant_id, vendor_id, reference, description, amount_cents, currency, due_date, paid_at, status, cost_center_id, created_at, updated_at
 		FROM payables WHERE tenant_id=? AND id=?`, tenantID, id)
 
 	_ = insertAudit(tx, r, tenantID, userID, "update", "payables", toInt64(id), p, after)
@@ -386,7 +386,7 @@ func (h *FinanceAPHandler) transition(w http.ResponseWriter, r *http.Request, fr
 
 	var before Payable
 	if err := tx.Get(&before, `
-		SELECT id, tenant_id, vendor_id, reference, description, amount_cents, currency, due_date, paid_at, status, created_at, updated_at
+		SELECT id, tenant_id, vendor_id, reference, description, amount_cents, currency, due_date, paid_at, status, cost_center_id, created_at, updated_at
 		FROM payables WHERE tenant_id=? AND id=?`, tenantID, id); err != nil {
 		http.Error(w, "payable not found", 404)
 		return
@@ -408,7 +408,7 @@ func (h *FinanceAPHandler) transition(w http.ResponseWriter, r *http.Request, fr
 
 	var after Payable
 	_ = tx.Get(&after, `
-		SELECT id, tenant_id, vendor_id, reference, description, amount_cents, currency, due_date, paid_at, status, created_at, updated_at
+		SELECT id, tenant_id, vendor_id, reference, description, amount_cents, currency, due_date, paid_at, status, cost_center_id, created_at, updated_at
 		FROM payables WHERE tenant_id=? AND id=?`, tenantID, id)
 
 	_ = insertAudit(tx, r, tenantID, userID, "update", "payables", toInt64(id), before, after)

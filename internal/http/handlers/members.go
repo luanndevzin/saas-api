@@ -9,6 +9,7 @@ import (
 
 	mw "saas-api/internal/http/middleware"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -288,17 +289,6 @@ func isValidRole(role string) bool {
 }
 
 func parseUintParam(r *http.Request, name string) (uint64, error) {
-	// chi usa URLParam
-	// import do chi aqui evita acoplamento no topo; se preferir, mova pro topo
-	// (mantive simples)
-	v := strings.TrimSpace(chiURLParam(r, name))
+	v := strings.TrimSpace(chi.URLParam(r, name))
 	return strconv.ParseUint(v, 10, 64)
-}
-
-// pequeno wrapper pra não importar chi no topo do arquivo se você não quiser.
-// Se preferir, apague isso e use chi.URLParam direto com import.
-func chiURLParam(r *http.Request, name string) string {
-	// você já usa chi em outros handlers? então pode trocar por chi.URLParam.
-	// aqui é apenas pra compilar sem depender da ordem mental.
-	return r.PathValue(name)
 }
