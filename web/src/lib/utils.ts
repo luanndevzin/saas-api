@@ -18,5 +18,18 @@ export function formatDate(input?: string | null) {
   return d.toLocaleDateString("pt-BR", { year: "numeric", month: "short", day: "2-digit" });
 }
 
+export function formatDateTime(input?: string | null) {
+  if (!input) return "-";
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return input;
+  return d.toLocaleString("pt-BR", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 
 

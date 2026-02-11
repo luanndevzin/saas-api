@@ -94,6 +94,16 @@ export interface Receivable {
   created_at?: string;
 }
 
+export interface TimeEntry {
+  id: number;
+  employee_id: number;
+  clock_in: string;
+  clock_out?: string | null;
+  note_in?: string | null;
+  note_out?: string | null;
+  created_at?: string;
+}
+
 export interface FinanceSummary {
   now_utc: string;
   net_paid_cents: number;
