@@ -198,6 +198,10 @@ func (h *TimeEntryHandler) updateOpenInternal(w http.ResponseWriter, r *http.Req
 			employeeID = uint64(t)
 		case int:
 			employeeID = uint64(t)
+		case int64:
+			employeeID = uint64(t)
+		case uint64:
+			employeeID = t
 		}
 	}
 	if employeeID == 0 {
