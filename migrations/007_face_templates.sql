@@ -1,4 +1,4 @@
-﻿-- +goose Up
+-- +goose Up
 CREATE TABLE face_templates (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT UNSIGNED NOT NULL,
