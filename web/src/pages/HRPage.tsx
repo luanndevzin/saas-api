@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useApi } from "../lib/api-provider";
 import { Department, Position, Employee, TimeEntry } from "../lib/api";
 import { useToast } from "../components/toast";
@@ -26,7 +26,15 @@ export function HRPage() {
   const [timeFrom, setTimeFrom] = useState<string>("");
   const [timeTo, setTimeTo] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [faceEmployee, setFaceEmployee] = useState<string>("");
+  const [faceLoading, setFaceLoading] = useState(false);
+  const [faceResult, setFaceResult] = useState<string>("");
+  const [cameraError, setCameraError] = useState<string>("");
+  const [cameraOn, setCameraOn] = useState(false);
   const [tab, setTab] = useState<Tab>("estrutura");
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const toArray = <T,>(v: T[] | null | undefined): T[] => (Array.isArray(v) ? v : []);
 
@@ -63,6 +71,74 @@ export function HRPage() {
 
   useEffect(() => { loadAll(); }, [statusFilter]);
   useEffect(() => { loadTimeEntries(); }, [timeEmp, timeFrom, timeTo]);
+
+  useEffect(() => {
+    return () => stopCamera();
+  }, []);
+
+  const startCamera = async () => {
+    try {
+      setCameraError("");
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setCameraOn(true);
+    } catch (err: any) {
+      setCameraError(err.message || "Não foi possível acessar a câmera");
+    }
+  };
+
+  const stopCamera = () => {
+    const stream = videoRef.current?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach((t) => t.stop());
+    setCameraOn(false);
+  };
+
+  const captureBase64 = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return null;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.9);
+  };
+
+  const handleFace = async (mode: "register" | "verify") => {
+    if (!faceEmployee) {
+      toast({ title: "Selecione um colaborador", variant: "error" });
+      return;
+    }
+    const img = captureBase64();
+    if (!img) {
+      toast({ title: "Não foi possível capturar imagem", variant: "error" });
+      return;
+    }
+    setFaceLoading(true);
+    setFaceResult("");
+    try {
+      const body = { employee_id: Number(faceEmployee), image_base64: img };
+      const res = await request<{ match?: boolean; distance?: number; phash?: number }>(mode === "register" ? "/face/register" : "/face/verify", {
+        method: "POST",
+        body,
+      });
+      if (mode === "register") {
+        setFaceResult("Template salvo");
+      } else {
+        const matchText = res?.match ? "Match" : "Não bateu";
+        setFaceResult(`${matchText} (dist=${res?.distance ?? "?"})`);
+      }
+      toast({ title: "OK", variant: "success" });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "error" });
+    } finally {
+      setFaceLoading(false);
+    }
+  };
 
   const createDept = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -420,6 +496,35 @@ export function HRPage() {
                     <a href="mailto:suporte@saas.com">Precisa de ajuda?</a>
                   </Button>
                 </div>
+              </div>
+            </Card>
+
+            <Card className="border-border/70 bg-muted/20 p-4">
+              <CardHeader className="mb-2 p-0">
+                <CardTitle>Rosto direto no SaaS</CardTitle>
+                <CardDescription>Capture, registre e valide sem app externo.</CardDescription>
+              </CardHeader>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <Select value={faceEmployee} onChange={(e) => setFaceEmployee(e.target.value)}>
+                  <option value="">Selecione colaborador</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.employee_code || `ID ${emp.id}`})</option>
+                  ))}
+                </Select>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={cameraOn ? stopCamera : startCamera}>
+                    {cameraOn ? "Parar câmera" : "Iniciar câmera"}
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => handleFace("register")} disabled={faceLoading}>Registrar face</Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => handleFace("verify")} disabled={faceLoading}>Verificar face</Button>
+                </div>
+                {cameraError && <div className="text-xs text-destructive">{cameraError}</div>}
+                <div className="rounded-lg border border-border/60 bg-background/80 p-2 flex flex-col items-center">
+                  <video ref={videoRef} className="w-full max-w-sm rounded-md bg-black" autoPlay playsInline muted />
+                  <canvas ref={canvasRef} className="hidden" />
+                </div>
+                {faceResult && <div className="text-xs text-foreground font-semibold">Resultado: {faceResult}</div>}
+                <p className="text-xs text-muted-foreground">Dica: boa luz frontal, rosto centralizado. O sistema usa pHash com tolerância.</p>
               </div>
             </Card>
           </div>

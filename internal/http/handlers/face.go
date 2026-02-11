@@ -136,7 +136,7 @@ func (h *FaceHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storedHash := goimagehash.NewImageHash(stored.Phash, goimagehash.PHash)
+	storedHash := goimagehash.NewImageHash(uint64(stored.Phash), goimagehash.PHash)
 	dist, err := storedHash.Distance(hash)
 	if err != nil {
 		http.Error(w, "distance error", 500)
