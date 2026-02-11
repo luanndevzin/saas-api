@@ -109,26 +109,22 @@ export function HRPage() {
   };
 
   const handleFaceClockAuto = async () => {
-    if (!faceEmployee) {
-      toast({ title: "Selecione um colaborador", variant: "error" });
-      return;
-    }
     const img = captureBase64();
     if (!img) {
       toast({ title: "Não foi possível capturar imagem", variant: "error" });
       return;
     }
-    const empId = Number(faceEmployee);
     setFaceLoading(true);
     setFaceResult("");
 
     const doClock = async () => {
       const te = await request<any>("/face/clock", {
         method: "POST",
-        body: { employee_id: empId, image_base64: img, note: "facial auto" },
+        body: { employee_id: faceEmployee ? Number(faceEmployee) : undefined, image_base64: img, note: "facial auto" },
       });
       const closed = te?.clock_out;
       const when = closed ? te.clock_out : te.clock_in;
+      if (te?.employee_id) setFaceEmployee(String(te.employee_id));
       setFaceResult(`${closed ? "Saída" : "Entrada"} registrada (${formatDateTime(when)})`);
       await loadTimeEntries();
     };
@@ -140,6 +136,12 @@ export function HRPage() {
       // Se não existir template, registra e tenta de novo
       if (err?.status === 404) {
         try {
+          const empId = faceEmployee ? Number(faceEmployee) : undefined;
+          if (!empId) {
+            toast({ title: "Cadastre a face primeiro (selecione o colaborador)", variant: "error" });
+            setFaceLoading(false);
+            return;
+          }
           await request("/face/register", { method: "POST", body: { employee_id: empId, image_base64: img } });
           await doClock();
           toast({ title: "Face registrada e batida feita", variant: "success" });

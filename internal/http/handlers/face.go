@@ -156,3 +156,44 @@ func (h *FaceHandler) verifyInternal(ctx context.Context, tenantID, employeeID u
 	}
 	return dist <= th, dist, nil
 }
+
+// identifyInternal encontra o employee com menor distância dentro do tenant
+func (h *FaceHandler) identifyInternal(ctx context.Context, tenantID uint64, imgB64 string) (uint64, int, error) {
+	var templates []faceTemplate
+	if err := h.DB.Select(&templates, `SELECT id, tenant_id, employee_id, phash, created_at, updated_at FROM face_templates WHERE tenant_id=?`, tenantID); err != nil {
+		return 0, 0, err
+	}
+	if len(templates) == 0 {
+		return 0, 0, fmt.Errorf("no face templates for tenant")
+	}
+	img, err := decodeImageFromBase64(imgB64)
+	if err != nil {
+		return 0, 0, err
+	}
+	hash, err := goimagehash.PerceptionHash(img)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	bestEmp := uint64(0)
+	bestDist := 999
+	for _, tpl := range templates {
+		storedHash := goimagehash.NewImageHash(uint64(tpl.Phash), goimagehash.PHash)
+		dist, err := storedHash.Distance(hash)
+		if err != nil {
+			continue
+		}
+		if dist < bestDist {
+			bestDist = dist
+			bestEmp = tpl.EmployeeID
+		}
+	}
+	th := h.Threshold
+	if th <= 0 {
+		th = 12
+	}
+	if bestEmp == 0 || bestDist > th {
+		return 0, bestDist, fmt.Errorf("no match within threshold")
+	}
+	return bestEmp, bestDist, nil
+}
