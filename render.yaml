@@ -1,11 +1,12 @@
 services:
-  - type: static
+  - type: static_site
     name: saas-web
+    rootDir: web
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
         value: "https://diplomatic-simplicity-production-70e0.up.railway.app/v1"
-    buildCommand: "cd web && npm install && npm run build"
-    publishDir: "web/dist"
     routes:
       - type: rewrite
         source: "/*"
