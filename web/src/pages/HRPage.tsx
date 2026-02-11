@@ -20,6 +20,8 @@ export function HRPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("");
 
+  const toArray = <T,>(v: T[] | null | undefined): T[] => (Array.isArray(v) ? v : []);
+
   const loadAll = async () => {
     try {
       const [d, p, e] = await Promise.all([
@@ -27,9 +29,9 @@ export function HRPage() {
         request<Position[]>("/positions"),
         request<Employee[]>(`/employees${statusFilter ? `?status=${statusFilter}` : ""}`),
       ]);
-      setDepartments(d);
-      setPositions(p);
-      setEmployees(e);
+      setDepartments(toArray(d));
+      setPositions(toArray(p));
+      setEmployees(toArray(e));
     } catch (err: any) {
       toast({ title: "Erro ao carregar HR", description: err.message, variant: "error" });
     }
