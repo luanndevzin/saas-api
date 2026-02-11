@@ -80,6 +80,9 @@ func NewRouter(db *sqlx.DB, log zerolog.Logger, jwtSecret []byte, jwtIssuer stri
 				face := &handlers.FaceHandler{DB: db}
 				r.Post("/face/register", face.Register)
 				r.Post("/face/verify", face.Verify)
+
+				fc := &handlers.FaceClockHandler{Face: face, TE: te}
+				r.Post("/face/clock", fc.Clock)
 			})
 
 			// -------------------

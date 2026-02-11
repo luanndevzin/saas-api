@@ -1,6 +1,10 @@
 package handlers
 
 import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -154,6 +158,78 @@ func (h *TimeEntryHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, items)
+}
+
+// util usado pelo FaceClock: encontra batida aberta (clock_out NULL)
+func (h *TimeEntryHandler) findOpenEntry(ctx context.Context, tenantID, employeeID uint64) (*TimeEntry, error) {
+	var te TimeEntry
+	err := h.DB.GetContext(ctx, &te, `
+		SELECT id, tenant_id, employee_id, clock_in, clock_out, note_in, note_out, created_at, updated_at
+		FROM time_entries
+		WHERE tenant_id=? AND employee_id=? AND clock_out IS NULL
+		ORDER BY clock_in ASC
+		LIMIT 1`, tenantID, employeeID)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &te, nil
+}
+
+// createInternal: bypass helpers HTTP para reuso
+func (h *TimeEntryHandler) createInternal(w http.ResponseWriter, r *http.Request, body map[string]any) {
+	// aproveita Create mas com body pré-montado
+	b, _ := json.Marshal(body)
+	r2 := r.Clone(r.Context())
+	r2.Body = io.NopCloser(strings.NewReader(string(b)))
+	h.Create(w, r2)
+}
+
+// updateOpenInternal fecha o primeiro aberto
+func (h *TimeEntryHandler) updateOpenInternal(w http.ResponseWriter, r *http.Request, body map[string]any) {
+	tenantID := mw.GetTenantID(r.Context())
+	userID := mw.GetUserID(r.Context())
+	employeeID := uint64(0)
+	if v, ok := body["employee_id"]; ok {
+		switch t := v.(type) {
+		case float64:
+			employeeID = uint64(t)
+		case int:
+			employeeID = uint64(t)
+		}
+	}
+	if employeeID == 0 {
+		http.Error(w, "employee_id required", 400)
+		return
+	}
+	open, err := h.findOpenEntry(r.Context(), tenantID, employeeID)
+	if err != nil {
+		http.Error(w, "db error", 500)
+		return
+	}
+	if open == nil {
+		http.Error(w, "no open entry", 400)
+		return
+	}
+	clockOut := time.Now().UTC()
+	if v, ok := body["clock_out"].(string); ok && strings.TrimSpace(v) != "" {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			clockOut = t
+		}
+	}
+	noteOut := body["note_out"]
+
+	_, err = h.DB.Exec(`UPDATE time_entries SET clock_out=?, note_out=?, updated_by=? WHERE tenant_id=? AND id=?`,
+		clockOut, noteOut, userID, tenantID, open.ID)
+	if err != nil {
+		http.Error(w, "db error", 500)
+		return
+	}
+	var te TimeEntry
+	_ = h.DB.Get(&te, `SELECT id, tenant_id, employee_id, clock_in, clock_out, note_in, note_out, created_at, updated_at FROM time_entries WHERE id=?`, open.ID)
+	writeJSON(w, 200, te)
 }
 
 // local helper (trim & nullify)

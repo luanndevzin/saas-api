@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"image"
@@ -119,30 +120,34 @@ func (h *FaceHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var stored faceTemplate
-	if err := h.DB.Get(&stored, `SELECT id, tenant_id, employee_id, phash, created_at, updated_at FROM face_templates WHERE tenant_id=? AND employee_id=?`, tenantID, req.EmployeeID); err != nil {
-		http.Error(w, "face template not found", 404)
+	match, dist, err := h.verifyInternal(r.Context(), tenantID, req.EmployeeID, req.ImageBase)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
 		return
 	}
+	writeJSON(w, 200, faceVerifyResp{Match: match, Distance: dist})
+}
 
-	img, err := decodeImageFromBase64(req.ImageBase)
+// verifyInternal permite reuso (face-clock)
+func (h *FaceHandler) verifyInternal(ctx context.Context, tenantID, employeeID uint64, imgB64 string) (bool, int, error) {
+	var stored faceTemplate
+	if err := h.DB.Get(&stored, `SELECT id, tenant_id, employee_id, phash, created_at, updated_at FROM face_templates WHERE tenant_id=? AND employee_id=?`, tenantID, employeeID); err != nil {
+		return false, 0, fmt.Errorf("face template not found")
+	}
+
+	img, err := decodeImageFromBase64(imgB64)
 	if err != nil {
-		http.Error(w, err.Error(), 400)
-		return
+		return false, 0, err
 	}
 	hash, err := goimagehash.PerceptionHash(img)
 	if err != nil {
-		http.Error(w, "hash error", 500)
-		return
+		return false, 0, err
 	}
 
 	storedHash := goimagehash.NewImageHash(uint64(stored.Phash), goimagehash.PHash)
 	dist, err := storedHash.Distance(hash)
 	if err != nil {
-		http.Error(w, "distance error", 500)
-		return
+		return false, 0, err
 	}
-
-	match := dist <= 12 // tolerance
-	writeJSON(w, 200, faceVerifyResp{Match: match, Distance: dist})
+	return dist <= 12, dist, nil
 }
