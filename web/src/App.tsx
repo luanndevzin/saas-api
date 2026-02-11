@@ -9,7 +9,6 @@ import { HRPage } from "./pages/HRPage";
 import { FinanceAPPage } from "./pages/FinanceAPPage";
 import { FinanceARPage } from "./pages/FinanceARPage";
 import { MembersPage } from "./pages/MembersPage";
-import { PlaygroundPage } from "./pages/PlaygroundPage";
 import { RequireAuth } from "./components/require-auth";
 import { AuthLayout } from "./components/auth-layout";
 import { LandingPage } from "./pages/LandingPage";
@@ -88,7 +87,6 @@ function App() {
                   </RequireRoles>
                 }
               />
-              <Route path="/playground" element={<PlaygroundPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

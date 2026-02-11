@@ -5,9 +5,9 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Check, Sparkles, Shield, Zap, Plug, Cpu } from "lucide-react";
 
 const highlights = [
-  { title: "Receitas & Despesas", desc: "AP/AR com centros de custo e approvals." },
-  { title: "Pessoas", desc: "Departamentos, cargos e colaboradores." },
-  { title: "Governança", desc: "Tenant isolado, roles e auditoria completa." },
+  { title: "Finanças unificadas", desc: "AP/AR com centros de custo, trilha de aprovação e eventos." },
+  { title: "Pessoas", desc: "Departamentos, cargos, colaboradores e custos consolidados." },
+  { title: "Governança", desc: "Tenant isolado, roles mínimas e trilha de auditoria completa." },
 ];
 
 const steps = [
@@ -20,7 +20,7 @@ const faqs = [
   { q: "Posso começar grátis?", a: "Sim. Cadastre a empresa, ganhe um período trial e depois escolha um plano." },
   { q: "Há limites de usuários?", a: "No plano Essencial até 20 usuários. Business e Enterprise são ilimitados." },
   { q: "Integra com SSO?", a: "SSO/SAML e SCIM estão no plano Enterprise." },
-  { q: "Meu cliente final vê configurações?", a: "Não. Entregamos uma experiência pronta, sem telas técnicas expostas." },
+  { q: "Existe suporte?", a: "Suporte humano por e-mail e chat. SLA e onboarding assistido nos planos avançados." },
 ];
 
 const plans = [
@@ -28,12 +28,14 @@ const plans = [
     name: "Essencial",
     price: "R$ 299/mês",
     perks: ["Até 20 usuários", "AP/AR + RH", "Suporte comercial"],
+    cta: "Começar",
     href: "/register",
   },
   {
     name: "Business",
     price: "R$ 699/mês",
     perks: ["Usuários ilimitados", "Aprovação em 2 níveis", "Suporte prioritário"],
+    cta: "Contratar",
     href: "/register",
     highlight: true,
   },
@@ -41,6 +43,7 @@ const plans = [
     name: "Enterprise",
     price: "Fale com vendas",
     perks: ["SSO/SAML", "SLA 99,9%", "Onboarding assistido"],
+    cta: "Falar com vendas",
     href: "mailto:vendas@saas.com",
   },
 ];
@@ -67,10 +70,10 @@ export function LandingPage() {
 
           <section className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr] items-center">
             <div className="space-y-6">
-              <Badge variant="outline" className="text-xs">Linkify-style • Produto pronto para clientes</Badge>
-              <h1 className="text-4xl font-bold leading-tight sm:text-5xl">Conecte finanças e pessoas em um painel elegante.</h1>
+              <Badge variant="outline" className="text-xs">Produto pronto para clientes</Badge>
+              <h1 className="text-4xl font-bold leading-tight sm:text-5xl">Conecte finanças e pessoas em um painel único.</h1>
               <p className="text-lg text-muted-foreground max-w-2xl">
-                Inspiração Linkify: copy clara, CTA direto, seções enxutas. Entregue payables, receivables, centros de custo, colaboradores e auditoria sem expor setup técnico.
+                Entregue payables, receivables, centros de custo, colaboradores e auditoria em uma experiência pronta, sem telas técnicas expostas ao cliente final.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Button asChild size="lg"><Link to="/register">Experimentar</Link></Button>

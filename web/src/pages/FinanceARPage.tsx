@@ -114,7 +114,7 @@ export function FinanceARPage() {
           <>
             <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-52">
               <option value="">Status: todos</option>
-              <option value="draft">draf</option>
+              <option value="draft">draft</option>
               <option value="issued">issued</option>
               <option value="paid">paid</option>
               <option value="canceled">canceled</option>
@@ -232,6 +232,5 @@ export function FinanceARPage() {
     </div>
   );
 }
-
 
 

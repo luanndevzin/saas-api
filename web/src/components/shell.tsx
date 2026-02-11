@@ -1,13 +1,12 @@
 ﻿import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ReactNode, useMemo, useState } from "react";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { useApi } from "../lib/api-provider";
 import { useToast } from "./toast";
 import { cn } from "../lib/utils";
-import { LayoutDashboard, ShieldCheck, Users, Wallet, Receipt, Briefcase, Sparkles, Plug } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Users, Wallet, Receipt, Briefcase } from "lucide-react";
 
 interface NavItem {
   label: string;
@@ -22,11 +21,10 @@ const navItems: NavItem[] = [
   { label: "Finance AR", to: "/finance/ar", icon: <Receipt className="h-4 w-4" />, roles: ["owner", "finance"] },
   { label: "HR", to: "/hr", icon: <Briefcase className="h-4 w-4" />, roles: ["owner", "hr"] },
   { label: "Members", to: "/members", icon: <Users className="h-4 w-4" />, roles: ["owner"] },
-  { label: "Playground", to: "/playground", icon: <Sparkles className="h-4 w-4" /> },
 ];
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { baseUrl, setBaseUrl, me, logout, request, token } = useApi();
+  const { baseUrl, me, logout, request, token } = useApi();
   const { toast } = useToast();
   const [checking, setChecking] = useState(false);
   const location = useLocation();
@@ -86,31 +84,17 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="flex min-h-screen flex-col">
           <header className="sticky top-0 z-20 border-b border-border/70 bg-background/80 backdrop-blur">
             <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-              <Button variant="ghost" size="sm" onClick={() => navigate("/login")}>Login</Button>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Plug className="h-4 w-4" />
-                Base URL
-              </div>
-              <Input
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                className="w-64"
-                placeholder="http://localhost:8080/v1"
-              />
+              <div className="text-sm text-muted-foreground">Conectado em: <span className="font-medium text-foreground">{baseUrl}</span></div>
               <Button size="sm" variant="outline" onClick={handleHealth} disabled={checking}>
-                {checking ? "Checando..." : "Ping /health"}
+                {checking ? "Checando..." : "Verificar API"}
               </Button>
               <div className="ml-auto flex items-center gap-2 text-xs">
-                {token ? (
-                  <Badge variant="outline">Token ativo</Badge>
-                ) : (
-                  <Badge variant="warning">Sem token</Badge>
-                )}
+                {token ? <Badge variant="outline">Token ativo</Badge> : <Badge variant="warning">Sem token</Badge>}
                 {me && <Badge variant="ghost">Role {me.role}</Badge>}
                 {me ? (
                   <Button size="sm" variant="ghost" onClick={logout}>Sair</Button>
                 ) : (
-                  <Button size="sm" variant="ghost" onClick={() => navigate("/auth")}>Entrar</Button>
+                  <Button size="sm" variant="ghost" onClick={() => navigate("/login")}>Entrar</Button>
                 )}
               </div>
             </div>
