@@ -237,11 +237,21 @@ export function HRPage() {
             </div>
             <div>
               <Label>Departamento ID</Label>
-              <Input name="department_id" type="number" />
+              <Select name="department_id" defaultValue="">
+                <option value="">(opcional)</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name} (#{d.id})</option>
+                ))}
+              </Select>
             </div>
             <div>
               <Label>Posicao ID</Label>
-              <Input name="position_id" type="number" />
+              <Select name="position_id" defaultValue="">
+                <option value="">(opcional)</option>
+                {positions.map((p) => (
+                  <option key={p.id} value={p.id}>{p.title} (#{p.id})</option>
+                ))}
+              </Select>
             </div>
             <div className="col-span-2">
               <Button type="submit" className="w-full">Criar</Button>
