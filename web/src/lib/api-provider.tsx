@@ -2,6 +2,10 @@
 import { apiFetch, type ApiOptions, type AuthResponse, type UserRole } from "./api";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 
+// fallback para produção se a env não vier setada no deploy
+const DEFAULT_API_URL =
+  import.meta.env.VITE_API_URL || "https://diplomatic-simplicity-production-70e0.up.railway.app/v1";
+
 interface MeInfo {
   userId: number;
   tenantId: number;
@@ -24,7 +28,7 @@ interface ApiContextValue {
 const ApiContext = createContext<ApiContextValue | null>(null);
 
 export function ApiProvider({ children }: { children: React.ReactNode }) {
-  const [baseUrl, setBaseUrl] = useLocalStorage<string>("saas_api_base", import.meta.env.VITE_API_URL || "http://localhost:8080/v1");
+  const [baseUrl, setBaseUrl] = useLocalStorage<string>("saas_api_base", DEFAULT_API_URL);
   const [token, setToken] = useLocalStorage<string>("saas_api_token", "");
   const [me, setMe] = useState<MeInfo | null>(null);
 
