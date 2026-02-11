@@ -20,7 +20,7 @@ type Config struct {
 	JWTIssuer     string `env:"JWT_ISSUER" envDefault:"saas-api"`
 	JWTTTLMinutes int    `env:"JWT_TTL_MINUTES" envDefault:"60"`
 
-	FacePHashThreshold int `env:"FACE_PHASH_THRESHOLD" envDefault:"12"`
+	FacePHashThreshold int `env:"FACE_PHASH_THRESHOLD" envDefault:"18"`
 
 	RunMigrations bool `env:"RUN_MIGRATIONS" envDefault:"true"`
 }
