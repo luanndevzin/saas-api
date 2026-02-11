@@ -115,7 +115,7 @@ export function HRPage() {
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "error" }); }
   };
 
-  const submitClock = async (type: "in" | "out", e: FormEvent<HTMLFormElement>) => {
+  const submitTimeEntry = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const employee_id = Number(fd.get("employee_id") || 0);
@@ -123,18 +123,27 @@ export function HRPage() {
       toast({ title: "Selecione um colaborador", variant: "error" });
       return;
     }
-    const tsRaw = fd.get("timestamp")?.toString().trim();
-    const note = fd.get("note")?.toString().trim();
-    const body: any = { employee_id };
-    if (tsRaw) {
-      const d = new Date(tsRaw);
-      if (!Number.isNaN(d.getTime())) body.timestamp = d.toISOString();
+    const clockInRaw = fd.get("clock_in")?.toString().trim();
+    const clockOutRaw = fd.get("clock_out")?.toString().trim();
+    const noteIn = fd.get("note_in")?.toString().trim();
+    const noteOut = fd.get("note_out")?.toString().trim();
+
+    if (!clockInRaw) {
+      toast({ title: "Informe a data/hora de entrada", variant: "error" });
+      return;
     }
-    if (note) body.note = note;
+
+    const body: any = { employee_id, clock_in: new Date(clockInRaw).toISOString() };
+    if (clockOutRaw) {
+      const d = new Date(clockOutRaw);
+      if (!Number.isNaN(d.getTime())) body.clock_out = d.toISOString();
+    }
+    if (noteIn) body.note_in = noteIn;
+    if (noteOut) body.note_out = noteOut;
 
     try {
-      await request(type === "in" ? "/time-entries/clock-in" : "/time-entries/clock-out", { method: "POST", body });
-      toast({ title: type === "in" ? "Entrada registrada" : "Saída registrada", variant: "success" });
+      await request("/time-entries", { method: "POST", body });
+      toast({ title: "Batida registrada", variant: "success" });
       e.currentTarget.reset();
       await loadTimeEntries();
     } catch (err: any) {
@@ -345,10 +354,10 @@ export function HRPage() {
           </CardHeader>
 
           <div className="grid gap-4 lg:grid-cols-3">
-            <form className="space-y-2 rounded-lg border border-border/70 p-3" onSubmit={(e) => submitClock("in", e)}>
+            <form className="space-y-2 rounded-lg border border-border/70 p-3" onSubmit={submitTimeEntry}>
               <div className="flex items-center justify-between gap-2">
-                <Label className="text-sm font-semibold">Entrada</Label>
-                <Badge variant="success">Clock-in</Badge>
+                <Label className="text-sm font-semibold">Nova batida</Label>
+                <Badge variant="success">Clock</Badge>
               </div>
               <Select name="employee_id" defaultValue="">
                 <option value="">Selecione colaborador</option>
@@ -356,29 +365,15 @@ export function HRPage() {
                   <option key={emp.id} value={emp.id}>{emp.name}</option>
                 ))}
               </Select>
-              <Label className="text-xs text-muted-foreground">Data/hora (opcional)</Label>
-              <Input type="datetime-local" name="timestamp" />
-              <Label className="text-xs text-muted-foreground">Observação (opcional)</Label>
-              <Input name="note" placeholder="Ex: remoto, cliente, etc." />
-              <Button type="submit" className="w-full">Registrar entrada</Button>
-            </form>
-
-            <form className="space-y-2 rounded-lg border border-border/70 p-3" onSubmit={(e) => submitClock("out", e)}>
-              <div className="flex items-center justify-between gap-2">
-                <Label className="text-sm font-semibold">Saída</Label>
-                <Badge variant="outline">Clock-out</Badge>
-              </div>
-              <Select name="employee_id" defaultValue="">
-                <option value="">Selecione colaborador</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>{emp.name}</option>
-                ))}
-              </Select>
-              <Label className="text-xs text-muted-foreground">Data/hora (opcional)</Label>
-              <Input type="datetime-local" name="timestamp" />
-              <Label className="text-xs text-muted-foreground">Observação (opcional)</Label>
-              <Input name="note" placeholder="Ex: fim do expediente" />
-              <Button type="submit" variant="secondary" className="w-full">Registrar saída</Button>
+              <Label className="text-xs text-muted-foreground">Entrada *</Label>
+              <Input type="datetime-local" name="clock_in" required />
+              <Label className="text-xs text-muted-foreground">Saída (opcional)</Label>
+              <Input type="datetime-local" name="clock_out" />
+              <Label className="text-xs text-muted-foreground">Observação entrada</Label>
+              <Input name="note_in" placeholder="Ex: kiosk facial" />
+              <Label className="text-xs text-muted-foreground">Observação saída</Label>
+              <Input name="note_out" placeholder="Ex: fim do expediente" />
+              <Button type="submit" className="w-full">Registrar batida</Button>
             </form>
 
             <div className="rounded-lg border border-border/70 p-3 space-y-2 bg-muted/30">
