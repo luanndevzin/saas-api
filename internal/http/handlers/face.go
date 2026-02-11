@@ -97,7 +97,7 @@ func (h *FaceHandler) Register(w http.ResponseWriter, r *http.Request) {
         INSERT INTO face_templates (tenant_id, employee_id, phash, created_by, updated_by)
         VALUES (?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE phash=VALUES(phash), updated_at=NOW(), updated_by=VALUES(updated_by)
-    `, tenantID, req.EmployeeID, hash.GetHash(), userID, userID)
+    `, tenantID, req.EmployeeID, int64(hash.GetHash()), userID, userID)
 	if err != nil {
 		http.Error(w, "db error", 500)
 		return
