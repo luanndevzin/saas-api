@@ -393,6 +393,37 @@ export function HRPage() {
             </div>
           </div>
 
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="border-border/70 bg-muted/20 p-4">
+              <CardHeader className="mb-2 p-0">
+                <CardTitle>Integração com Jibble</CardTitle>
+                <CardDescription>Passo-a-passo para importar batidas faciais.</CardDescription>
+              </CardHeader>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Em Jibble, preencha o <strong>Employee ID</strong> igual ao <strong>employee_code</strong> do colaborador.</li>
+                  <li>Exporte o CSV de timesheets no período desejado.</li>
+                  <li>Rode o importador localmente ou no Railway cron.</li>
+                </ol>
+                <div className="rounded-md bg-background/70 border border-dashed border-border/70 p-3 text-xs text-foreground">
+                  go run ./cmd/importer ^
+                  <br />  -file jibble_timesheets.csv ^
+                  <br />  -base-url https://diplomatic-simplicity-production-70e0.up.railway.app/v1 ^
+                  <br />  -token "&lt;JWT_owner_ou_hr&gt;"
+                </div>
+                <p className="text-xs text-muted-foreground">Dica: gere o JWT fazendo login como owner/hr e copie o token salvo no navegador.</p>
+                <div className="flex gap-2">
+                  <Button asChild size="sm" variant="outline">
+                    <a href="https://web.jibble.io" target="_blank" rel="noreferrer">Abrir Jibble</a>
+                  </Button>
+                  <Button asChild size="sm" variant="ghost">
+                    <a href="mailto:suporte@saas.com">Precisa de ajuda?</a>
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+
           <div className="mt-4 max-h-96 overflow-auto pr-1">
             <Table>
               <THead>
