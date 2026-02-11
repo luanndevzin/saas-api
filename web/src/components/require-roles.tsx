@@ -9,10 +9,13 @@ interface Props {
 }
 
 export function RequireRoles({ roles, fallback = "/", children }: Props) {
-  const { me } = useApi();
+  const { me, token } = useApi();
   const location = useLocation();
 
-  if (!me) return <Navigate to="/login" replace state={{ from: location }} />;
+  // Sem token -> login
+  if (!token) return <Navigate to="/login" replace state={{ from: location }} />;
+  // Com token mas sem /me carregado ainda: deixa passar para evitar redirects indevidos
+  if (!me) return <>{children}</>;
   if (!roles.includes(me.role)) return <Navigate to={fallback} replace />;
   return <>{children}</>;
 }

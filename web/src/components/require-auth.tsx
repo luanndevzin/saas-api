@@ -12,9 +12,9 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     refreshMe().finally(() => setChecked(true));
   }, [refreshMe]);
 
-  if (!token && checked) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
-  }
+  // sem token -> login. Com token, permitimos seguir mesmo se /me falhar (evita redirect indevido).
+  if (!token && checked) return <Navigate to="/login" replace state={{ from: location }} />;
+  if (!token) return <Navigate to="/login" replace state={{ from: location }} />;
 
   return <>{children}</>;
 }
