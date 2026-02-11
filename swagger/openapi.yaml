@@ -53,6 +53,15 @@ components:
         department_id: { type: integer, nullable: true }
         position_id: { type: integer, nullable: true }
         salary_cents: { type: integer }
+    TimeEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        employee_id: { type: integer }
+        clock_in: { type: string, format: date-time }
+        clock_out: { type: string, format: date-time, nullable: true }
+        note_in: { type: string, nullable: true }
+        note_out: { type: string, nullable: true }
     Vendor:
       type: object
       properties:
@@ -252,6 +261,75 @@ paths:
                 position_id: { type: integer }
       responses:
         '201': { description: criado }
+  /time-entries/clock-in:
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [hr]
+      summary: Registrar entrada (bater ponto)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employee_id]
+              properties:
+                employee_id: { type: integer }
+                timestamp: { type: string, format: date-time, description: 'RFC3339, opcional (default agora)' }
+                note: { type: string }
+      responses:
+        '201':
+          description: criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TimeEntry' }
+  /time-entries/clock-out:
+    post:
+      security: [{ bearerAuth: [] }]
+      tags: [hr]
+      summary: Registrar saída (fechar ponto em aberto)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employee_id]
+              properties:
+                employee_id: { type: integer }
+                timestamp: { type: string, format: date-time, description: 'RFC3339, opcional (default agora)' }
+                note: { type: string }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TimeEntry' }
+  /time-entries:
+    get:
+      security: [{ bearerAuth: [] }]
+      tags: [hr]
+      summary: Listar marcações de ponto
+      parameters:
+        - in: query
+          name: employee_id
+          schema: { type: integer }
+        - in: query
+          name: from
+          schema: { type: string, format: date }
+          description: 'Filtra clock_in >= data (YYYY-MM-DD)'
+        - in: query
+          name: to
+          schema: { type: string, format: date }
+          description: 'Filtra clock_in até data (YYYY-MM-DD, inclusivo)'
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TimeEntry' }
   /vendors:
     get:
       security: [{ bearerAuth: [] }]

@@ -68,6 +68,10 @@ func NewRouter(db *sqlx.DB, log zerolog.Logger, jwtSecret []byte, jwtIssuer stri
 
 				r.Post("/employees", hr.CreateEmployee)
 				r.Get("/employees", hr.ListEmployees)
+
+				r.Post("/time-entries/clock-in", hr.ClockIn)
+				r.Post("/time-entries/clock-out", hr.ClockOut)
+				r.Get("/time-entries", hr.ListTimeEntries)
 			})
 
 			// -------------------

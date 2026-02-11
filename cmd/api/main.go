@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"os"
 
@@ -18,7 +19,7 @@ func main() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
 
 	_ = godotenv.Load()
-	
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal().Err(err).Msg("config load failed")
@@ -29,6 +30,13 @@ func main() {
 		log.Fatal().Err(err).Msg("db connection failed")
 	}
 	defer database.Close()
+
+	if cfg.RunMigrations {
+		log.Info().Msg("running migrations")
+		if err := db.Migrate(context.Background(), database); err != nil {
+			log.Fatal().Err(err).Msg("migrations failed")
+		}
+	}
 
 	router := httpserver.NewRouter(database, log.Logger, []byte(cfg.JWTSecret), cfg.JWTIssuer, cfg.JWTTTLMinutes)
 

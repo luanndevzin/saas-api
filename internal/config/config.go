@@ -19,6 +19,8 @@ type Config struct {
 	JWTSecret     string `env:"JWT_SECRET,required"`
 	JWTIssuer     string `env:"JWT_ISSUER" envDefault:"saas-api"`
 	JWTTTLMinutes int    `env:"JWT_TTL_MINUTES" envDefault:"60"`
+
+	RunMigrations bool `env:"RUN_MIGRATIONS" envDefault:"true"`
 }
 
 func Load() (Config, error) {

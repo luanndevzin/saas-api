@@ -13,3 +13,4 @@ DB_NAME=
 JWT_SECRET=defina_um_seguro
 JWT_ISSUER=saas-api
 JWT_TTL_MINUTES=60
+RUN_MIGRATIONS=true
