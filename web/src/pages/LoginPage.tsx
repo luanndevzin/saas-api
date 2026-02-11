@@ -1,14 +1,13 @@
-import { FormEvent, useState } from "react";
+Ôªøimport { FormEvent, useState } from "react";
 import { useApi } from "../lib/api-provider";
 import { useToast } from "../components/toast";
 import { Button } from "../components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Badge } from "../components/ui/badge";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { UserRole } from "../lib/api";
-import { ShieldCheck, Sparkles, Zap } from "lucide-react";
+import { ShieldCheck, Sparkles, Lock, Headphones } from "lucide-react";
 
 const routeByRole = (role?: UserRole) => {
   switch (role) {
@@ -25,7 +24,7 @@ const routeByRole = (role?: UserRole) => {
 };
 
 export function LoginPage() {
-  const { login, me } = useApi();
+  const { login } = useApi();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -52,48 +51,44 @@ export function LoginPage() {
       <Card className="card-glass border-primary/20">
         <CardHeader className="space-y-1 pb-2">
           <CardTitle className="text-2xl">Acesse sua conta</CardTitle>
-          <CardDescription>Somente clientes ativos.</CardDescription>
+          <CardDescription>Ambiente seguro para clientes e equipes convidadas.</CardDescription>
         </CardHeader>
         <form className="space-y-3 p-4 pt-0" onSubmit={submitLogin}>
           <div className="space-y-1">
             <Label htmlFor="email">Email corporativo</Label>
-            <Input id="email" name="email" type="email" required placeholder="voce@empresa.com" />
+            <Input id="email" name="email" type="email" required placeholder="voce@empresa.com" autoComplete="username" />
           </div>
           <div className="space-y-1">
             <Label htmlFor="password">Senha</Label>
-            <Input id="password" name="password" type="password" required placeholder="ïïïïïïïï" />
+            <Input id="password" name="password" type="password" required placeholder="‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢" autoComplete="current-password" />
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Use as credenciais fornecidas pelo owner do tenant.</span>
+            <Link to="mailto:suporte@saas.com" className="text-primary font-semibold">Precisa de ajuda?</Link>
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Entrando..." : "Entrar"}
           </Button>
           <p className="text-xs text-muted-foreground text-center">
-            Novo cliente? <Link to="/register" className="font-semibold text-primary">ComeÁar agora</Link>
+            Novo cliente? <Link to="/register" className="font-semibold text-primary">Come√ßar agora</Link>
           </p>
         </form>
       </Card>
 
       <div className="space-y-4">
         <Card className="bg-card/70 border-border/60 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck className="h-4 w-4 text-primary" /> Token & role</div>
-          {me ? (
-            <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-              <div>Tenant: <Badge variant="outline">{me.tenantId}</Badge></div>
-              <div>User: <Badge variant="outline">{me.userId}</Badge></div>
-              <div>Role: <Badge variant="ghost">{me.role}</Badge></div>
-            </div>
-          ) : (
-            <p className="mt-2 text-sm text-muted-foreground">FaÁa login para ver o token JWT ativo.</p>
-          )}
+          <div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck className="h-4 w-4 text-primary" /> Seguran√ßa</div>
+          <ul className="mt-2 space-y-1 text-sm text-muted-foreground list-disc list-inside">
+            <li>Isolamento por tenant e roles m√≠nimas (owner, finance, hr, member).</li>
+            <li>JWT com expira√ß√£o configur√°vel e rota√ß√£o ao renovar sess√£o.</li>
+            <li>Audit trail para eventos financeiros e de RH.</li>
+          </ul>
         </Card>
         <Card className="bg-muted/10 border-border/60 p-4 space-y-2">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Sparkles className="h-4 w-4 text-primary" /> Dicas</div>
-          <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-            <li>Roles direcionam vocÍ ao mÛdulo correto apÛs login.</li>
-            <li>Credenciais s„o exclusivas por empresa.</li>
-          </ul>
-          <div className="flex gap-2 text-xs text-muted-foreground">
-            <Zap className="h-4 w-4 text-primary" /> Tokens s„o rotacion·veis a qualquer momento pelo owner.
-          </div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Sparkles className="h-4 w-4 text-primary" /> Pronto para o time</div>
+          <p className="text-sm text-muted-foreground">Ap√≥s login, direcionamos voc√™ ao m√≥dulo correto conforme sua role.</p>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground"><Lock className="h-4 w-4 text-primary" /> Sess√µes expiram automaticamente via TTL.</div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground"><Headphones className="h-4 w-4 text-primary" /> Suporte humano em hor√°rio comercial.</div>
         </Card>
       </div>
     </div>

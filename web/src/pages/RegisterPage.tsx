@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+Ôªøimport { FormEvent, useState } from "react";
 import { useApi } from "../lib/api-provider";
 import { useToast } from "../components/toast";
 import { Button } from "../components/ui/button";
@@ -7,7 +7,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { useNavigate, Link } from "react-router-dom";
 import { UserRole } from "../lib/api";
-import { Sparkles, ShieldCheck, Check } from "lucide-react";
+import { Sparkles, ShieldCheck, Check, Headphones } from "lucide-react";
 
 const routeByRole = (role?: UserRole) => {
   switch (role) {
@@ -24,7 +24,7 @@ const routeByRole = (role?: UserRole) => {
 };
 
 export function RegisterPage() {
-  const { register, me } = useApi();
+  const { register } = useApi();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -59,44 +59,46 @@ export function RegisterPage() {
         <form className="space-y-3 p-4 pt-0" onSubmit={submitRegister}>
           <div className="space-y-1">
             <Label htmlFor="company_name">Empresa</Label>
-            <Input id="company_name" name="company_name" required placeholder="Nome da empresa" />
+            <Input id="company_name" name="company_name" required placeholder="Nome da empresa" autoComplete="organization" />
           </div>
           <div className="space-y-1">
             <Label htmlFor="name">Seu nome</Label>
-            <Input id="name" name="name" required placeholder="Seu nome" />
+            <Input id="name" name="name" required placeholder="Seu nome" autoComplete="name" />
           </div>
           <div className="space-y-1">
             <Label htmlFor="email_reg">Email</Label>
-            <Input id="email_reg" name="email" type="email" required placeholder="voce@empresa.com" />
+            <Input id="email_reg" name="email" type="email" required placeholder="voce@empresa.com" autoComplete="email" />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="password_reg">Senha (mÌn. 8)</Label>
-            <Input id="password_reg" name="password" type="password" minLength={8} required placeholder="ïïïïïïïï" />
+            <Label htmlFor="password_reg">Senha (m√≠n. 8)</Label>
+            <Input id="password_reg" name="password" type="password" minLength={8} required placeholder="‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢" autoComplete="new-password" />
+          </div>
+          <div className="flex items-start gap-2 text-xs text-muted-foreground">
+            <input id="terms" name="terms" type="checkbox" required className="mt-1" />
+            <label htmlFor="terms">Concordo em receber comunica√ß√µes sobre a conta e aceito os termos de uso.</label>
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Registrando..." : "Registrar e entrar"}
           </Button>
           <p className="text-xs text-muted-foreground text-center">
-            J· tem conta? <Link to="/login" className="font-semibold text-primary">Ir para login</Link>
+            J√° tem conta? <Link to="/login" className="font-semibold text-primary">Ir para login</Link>
           </p>
         </form>
       </Card>
 
       <div className="space-y-4">
-        <Card className="bg-card/70 border-border/60 p-4 space-y-2">
-          <div className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4 text-primary" /> BenefÌcios imediatos</div>
+        <Card className="bg-card/70 border-border/60 p-4 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4 text-primary" /> Benef√≠cios imediatos</div>
           <div className="grid gap-2 md:grid-cols-2 text-sm text-muted-foreground">
-            {["Dashboard financeiro", "AprovaÁ„o em dois nÌveis", "Multi-tenant e roles", "Auditoria de eventos"].map((item) => (
+            {["Dashboard financeiro", "Aprova√ß√£o em dois n√≠veis", "Multi-tenant e roles", "Auditoria de eventos"].map((item) => (
               <span key={item} className="flex items-center gap-2"><Check className="h-4 w-4 text-primary" /> {item}</span>
             ))}
           </div>
-          {me && (
-            <p className="text-xs text-muted-foreground">J· logado como {me.role}. Registrar cria um novo tenant.</p>
-          )}
         </Card>
         <Card className="bg-muted/10 border-border/60 p-4 space-y-2">
-          <div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck className="h-4 w-4 text-primary" /> SeguranÁa</div>
-          <p className="text-sm text-muted-foreground">Tokens ficam no seu domÌnio; vocÍ controla membros e acessos.</p>
+          <div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck className="h-4 w-4 text-primary" /> Seguran√ßa</div>
+          <p className="text-sm text-muted-foreground">Tokens e membros ficam sob controle do owner. Roles m√≠nimas protegem cada m√≥dulo.</p>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground"><Headphones className="h-4 w-4 text-primary" /> Suporte humano em hor√°rio comercial.</div>
         </Card>
       </div>
     </div>
