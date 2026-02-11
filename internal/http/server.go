@@ -24,6 +24,10 @@ func NewRouter(db *sqlx.DB, log zerolog.Logger, jwtSecret []byte, jwtIssuer stri
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
+	// Responde preflight para qualquer rota
+	r.Options("/*", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
 
 	// Swagger UI estatico em /swagger
 	r.Route("/swagger", func(sw chi.Router) {
