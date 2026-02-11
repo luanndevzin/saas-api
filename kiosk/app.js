@@ -20,6 +20,32 @@ let employees = [];
 let reader = null;
 let scanning = false;
 
+async function loadEnvFile() {
+  try {
+    const res = await fetch("./.env");
+    if (!res.ok) return;
+    const txt = await res.text();
+    const map = Object.fromEntries(
+      txt
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .filter((line) => !line.startsWith("#"))
+        .map((line) => {
+          const idx = line.indexOf("=");
+          if (idx === -1) return [line, ""];
+          return [line.slice(0, idx), line.slice(idx + 1)];
+        })
+    );
+    if (map.API_BASE) els.apiBase.value = map.API_BASE;
+    if (map.API_TOKEN) els.apiToken.value = map.API_TOKEN;
+    if (map.AUTO_ACTION) els.autoAction.value = map.AUTO_ACTION;
+    saveSettings();
+  } catch (e) {
+    console.debug("Could not load .env (optional):", e);
+  }
+}
+
 const STORAGE_KEY = "kiosk-settings";
 
 function loadSettings() {
@@ -193,4 +219,4 @@ els.employeeSelect.onchange = loadEntries;
 
 // bootstrap
 loadSettings();
-loadEmployees().then(loadEntries);
+loadEnvFile().finally(() => loadEmployees().then(loadEntries));

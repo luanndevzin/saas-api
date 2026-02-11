@@ -38,7 +38,7 @@ func main() {
 		}
 	}
 
-	router := httpserver.NewRouter(database, log.Logger, []byte(cfg.JWTSecret), cfg.JWTIssuer, cfg.JWTTTLMinutes, cfg.FacePHashThreshold)
+	router := httpserver.NewRouter(database, log.Logger, []byte(cfg.JWTSecret), cfg.JWTIssuer, cfg.JWTTTLMinutes)
 
 	log.Info().Str("addr", cfg.HTTPAddr).Msg("api listening")
 	if err := http.ListenAndServe(cfg.HTTPAddr, router); err != nil {
