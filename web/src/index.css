@@ -1,0 +1,55 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 15% 6%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 8%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 10%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 191 97% 77%;
+    --primary-foreground: 222 47% 6%;
+    --secondary: 217 33% 18%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 15%;
+    --muted-foreground: 215 20% 70%;
+    --accent: 191 97% 77%;
+    --accent-foreground: 222 47% 8%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 215 27% 25%;
+    --input: 215 27% 18%;
+    --ring: 191 97% 77%;
+    --radius: 0.8rem;
+  }
+
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Space Grotesk", "Segoe UI", system-ui, -apple-system, sans-serif;
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(56,189,248,0.08), transparent 30%),
+      radial-gradient(circle at 80% 0%, rgba(94,92,255,0.12), transparent 25%),
+      linear-gradient(120deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+  }
+}
+
+.container {
+  @apply mx-auto max-w-6xl px-4;
+}
+
+.card-glass {
+  backdrop-filter: blur(8px);
+  background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 16px 50px rgba(0,0,0,0.35);
+}
+
+.scrollarea::-webkit-scrollbar { width: 10px; }
+.scrollarea::-webkit-scrollbar-thumb { background: hsl(var(--muted)); border-radius: 999px; }
+
+.shadow-card { box-shadow: 0 20px 60px rgba(0,0,0,0.35); }

@@ -1,0 +1,12 @@
+services:
+  - type: static
+    name: saas-web
+    envVars:
+      - key: VITE_API_URL
+        value: "https://diplomatic-simplicity-production-70e0.up.railway.app/v1"
+    buildCommand: "cd web && npm install && npm run build"
+    publishDir: "web/dist"
+    routes:
+      - type: rewrite
+        source: "/*"
+        destination: "/index.html"
