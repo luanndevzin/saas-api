@@ -843,9 +843,6 @@ export function HRPage() {
           </Card>
         </div>
       )}
-    </div>
-  );
-}
 
       {tab === "colaboradores" && (
         <div className="grid gap-4 xl:grid-cols-2">
@@ -1216,3 +1213,6 @@ export function HRPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
