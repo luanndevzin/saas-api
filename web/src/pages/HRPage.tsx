@@ -1,6 +1,6 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useApi } from "../lib/api-provider";
-import { Department, Position, Employee, TimeEntry } from "../lib/api";
+import { Department, Position, Employee } from "../lib/api";
 import { useToast } from "../components/toast";
 import { Card, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -9,10 +9,10 @@ import { Button } from "../components/ui/button";
 import { Table, THead, TBody, TR, TH, TD } from "../components/ui/table";
 import { Select } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
-import { formatCents, formatDate, formatDateTime } from "../lib/utils";
+import { formatCents, formatDate } from "../lib/utils";
 import { PageHeader } from "../components/page-header";
 
-type Tab = "estrutura" | "colaboradores" | "ponto";
+type Tab = "estrutura" | "colaboradores";
 
 export function HRPage() {
   const { request } = useApi();
@@ -21,20 +21,8 @@ export function HRPage() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("");
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-  const [timeEmp, setTimeEmp] = useState<string>("");
-  const [timeFrom, setTimeFrom] = useState<string>("");
-  const [timeTo, setTimeTo] = useState<string>("");
   const [loading, setLoading] = useState(false);
-  const [faceEmployee, setFaceEmployee] = useState<string>("");
-  const [faceLoading, setFaceLoading] = useState(false);
-  const [faceResult, setFaceResult] = useState<string>("");
-  const [cameraError, setCameraError] = useState<string>("");
-  const [cameraOn, setCameraOn] = useState(false);
   const [tab, setTab] = useState<Tab>("estrutura");
-
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const toArray = <T,>(v: T[] | null | undefined): T[] => (Array.isArray(v) ? v : []);
 
@@ -56,105 +44,7 @@ export function HRPage() {
     }
   };
 
-  const loadTimeEntries = async () => {
-    try {
-      const params = new URLSearchParams();
-      if (timeEmp) params.set("employee_id", timeEmp);
-      if (timeFrom) params.set("from", timeFrom);
-      if (timeTo) params.set("to", timeTo);
-      const data = await request<TimeEntry[]>(`/time-entries${params.toString() ? `?${params}` : ""}`);
-      setTimeEntries(toArray(data));
-    } catch (err: any) {
-      toast({ title: "Erro ao carregar pontos", description: err.message, variant: "error" });
-    }
-  };
-
   useEffect(() => { loadAll(); }, [statusFilter]);
-  useEffect(() => { loadTimeEntries(); }, [timeEmp, timeFrom, timeTo]);
-
-  useEffect(() => {
-    return () => stopCamera();
-  }, []);
-
-  const startCamera = async () => {
-    try {
-      setCameraError("");
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setCameraOn(true);
-    } catch (err: any) {
-      setCameraError(err.message || "Não foi possível acessar a câmera");
-    }
-  };
-
-  const stopCamera = () => {
-    const stream = videoRef.current?.srcObject as MediaStream | null;
-    stream?.getTracks().forEach((t) => t.stop());
-    setCameraOn(false);
-  };
-
-  const captureBase64 = () => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return null;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.9);
-  };
-
-  const handleFaceClockAuto = async () => {
-    const img = captureBase64();
-    if (!img) {
-      toast({ title: "Não foi possível capturar imagem", variant: "error" });
-      return;
-    }
-    setFaceLoading(true);
-    setFaceResult("");
-
-    const doClock = async () => {
-      const te = await request<any>("/face/clock", {
-        method: "POST",
-        body: { employee_id: faceEmployee ? Number(faceEmployee) : undefined, image_base64: img, note: "facial auto" },
-      });
-      const closed = te?.clock_out;
-      const when = closed ? te.clock_out : te.clock_in;
-      if (te?.employee_id) setFaceEmployee(String(te.employee_id));
-      setFaceResult(`${closed ? "Saída" : "Entrada"} registrada (${formatDateTime(when)})`);
-      await loadTimeEntries();
-    };
-
-    try {
-      await doClock();
-      toast({ title: "Batida registrada", variant: "success" });
-    } catch (err: any) {
-      // Se não existir template, registra e tenta de novo
-      if (err?.status === 404) {
-        try {
-          const empId = faceEmployee ? Number(faceEmployee) : undefined;
-          if (!empId) {
-            toast({ title: "Cadastre a face primeiro (selecione o colaborador)", variant: "error" });
-            setFaceLoading(false);
-            return;
-          }
-          await request("/face/register", { method: "POST", body: { employee_id: empId, image_base64: img } });
-          await doClock();
-          toast({ title: "Face registrada e batida feita", variant: "success" });
-        } catch (err2: any) {
-          toast({ title: "Erro ao registrar/bater ponto", description: err2.message, variant: "error" });
-        }
-      } else {
-        toast({ title: "Erro ao bater ponto com face", description: err?.message, variant: "error" });
-      }
-    } finally {
-      setFaceLoading(false);
-    }
-  };
 
   const createDept = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
