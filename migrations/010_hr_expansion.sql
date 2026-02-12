@@ -1,10 +1,54 @@
 -- +goose Up
-ALTER TABLE employees
-  ADD COLUMN manager_id BIGINT UNSIGNED NULL AFTER position_id,
-  ADD KEY idx_emp_tenant_manager (tenant_id, manager_id),
-  ADD CONSTRAINT fk_emp_manager FOREIGN KEY (tenant_id, manager_id) REFERENCES employees(tenant_id, id);
+SET @has_manager_col := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'employees'
+    AND COLUMN_NAME = 'manager_id'
+);
+SET @sql := IF(
+  @has_manager_col = 0,
+  'ALTER TABLE employees ADD COLUMN manager_id BIGINT UNSIGNED NULL AFTER position_id',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
-CREATE TABLE employee_compensations (
+SET @has_manager_idx := (
+  SELECT COUNT(*)
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'employees'
+    AND INDEX_NAME = 'idx_emp_tenant_manager'
+);
+SET @sql := IF(
+  @has_manager_idx = 0,
+  'ALTER TABLE employees ADD KEY idx_emp_tenant_manager (tenant_id, manager_id)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_manager_fk := (
+  SELECT COUNT(*)
+  FROM information_schema.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'employees'
+    AND CONSTRAINT_NAME = 'fk_emp_manager'
+    AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+);
+SET @sql := IF(
+  @has_manager_fk = 0,
+  'ALTER TABLE employees ADD CONSTRAINT fk_emp_manager FOREIGN KEY (tenant_id, manager_id) REFERENCES employees(tenant_id, id)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+CREATE TABLE IF NOT EXISTS employee_compensations (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT UNSIGNED NOT NULL,
   employee_id BIGINT UNSIGNED NOT NULL,
@@ -22,7 +66,7 @@ CREATE TABLE employee_compensations (
   CONSTRAINT fk_ec_employee FOREIGN KEY (tenant_id, employee_id) REFERENCES employees(tenant_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE locations (
+CREATE TABLE IF NOT EXISTS locations (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT UNSIGNED NOT NULL,
   name VARCHAR(200) NOT NULL,
@@ -43,7 +87,7 @@ CREATE TABLE locations (
   CONSTRAINT fk_loc_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE teams (
+CREATE TABLE IF NOT EXISTS teams (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT UNSIGNED NOT NULL,
   name VARCHAR(200) NOT NULL,
@@ -66,7 +110,7 @@ CREATE TABLE teams (
   CONSTRAINT fk_team_location FOREIGN KEY (tenant_id, location_id) REFERENCES locations(tenant_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE time_off_types (
+CREATE TABLE IF NOT EXISTS time_off_types (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT UNSIGNED NOT NULL,
   name VARCHAR(150) NOT NULL,
@@ -83,7 +127,7 @@ CREATE TABLE time_off_types (
   CONSTRAINT fk_tot_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE time_off_requests (
+CREATE TABLE IF NOT EXISTS time_off_requests (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT UNSIGNED NOT NULL,
   employee_id BIGINT UNSIGNED NOT NULL,
@@ -110,7 +154,7 @@ CREATE TABLE time_off_requests (
   CONSTRAINT fk_tor_type FOREIGN KEY (tenant_id, type_id) REFERENCES time_off_types(tenant_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE benefits (
+CREATE TABLE IF NOT EXISTS benefits (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT UNSIGNED NOT NULL,
   name VARCHAR(200) NOT NULL,
@@ -128,7 +172,7 @@ CREATE TABLE benefits (
   CONSTRAINT fk_benefit_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE employee_benefits (
+CREATE TABLE IF NOT EXISTS employee_benefits (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT UNSIGNED NOT NULL,
   employee_id BIGINT UNSIGNED NOT NULL,
@@ -145,7 +189,7 @@ CREATE TABLE employee_benefits (
   CONSTRAINT fk_eb_benefit FOREIGN KEY (tenant_id, benefit_id) REFERENCES benefits(tenant_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE employee_documents (
+CREATE TABLE IF NOT EXISTS employee_documents (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT UNSIGNED NOT NULL,
   employee_id BIGINT UNSIGNED NOT NULL,
@@ -174,6 +218,51 @@ DROP TABLE IF EXISTS time_off_types;
 DROP TABLE IF EXISTS teams;
 DROP TABLE IF EXISTS locations;
 DROP TABLE IF EXISTS employee_compensations;
-ALTER TABLE employees DROP FOREIGN KEY fk_emp_manager;
-ALTER TABLE employees DROP INDEX idx_emp_tenant_manager;
-ALTER TABLE employees DROP COLUMN manager_id;
+SET @has_manager_fk := (
+  SELECT COUNT(*)
+  FROM information_schema.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'employees'
+    AND CONSTRAINT_NAME = 'fk_emp_manager'
+    AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+);
+SET @sql := IF(
+  @has_manager_fk = 1,
+  'ALTER TABLE employees DROP FOREIGN KEY fk_emp_manager',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_manager_idx := (
+  SELECT COUNT(*)
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'employees'
+    AND INDEX_NAME = 'idx_emp_tenant_manager'
+);
+SET @sql := IF(
+  @has_manager_idx = 1,
+  'ALTER TABLE employees DROP INDEX idx_emp_tenant_manager',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_manager_col := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'employees'
+    AND COLUMN_NAME = 'manager_id'
+);
+SET @sql := IF(
+  @has_manager_col = 1,
+  'ALTER TABLE employees DROP COLUMN manager_id',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
