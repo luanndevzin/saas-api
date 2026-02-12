@@ -97,42 +97,6 @@ export function HRPage() {
     } catch (err: any) { toast({ title: "Erro", description: err.message, variant: "error" }); }
   };
 
-  const submitTimeEntry = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const employee_id = Number(fd.get("employee_id") || 0);
-    if (!employee_id) {
-      toast({ title: "Selecione um colaborador", variant: "error" });
-      return;
-    }
-    const clockInRaw = fd.get("clock_in")?.toString().trim();
-    const clockOutRaw = fd.get("clock_out")?.toString().trim();
-    const noteIn = fd.get("note_in")?.toString().trim();
-    const noteOut = fd.get("note_out")?.toString().trim();
-
-    if (!clockInRaw) {
-      toast({ title: "Informe a data/hora de entrada", variant: "error" });
-      return;
-    }
-
-    const body: any = { employee_id, clock_in: new Date(clockInRaw).toISOString() };
-    if (clockOutRaw) {
-      const d = new Date(clockOutRaw);
-      if (!Number.isNaN(d.getTime())) body.clock_out = d.toISOString();
-    }
-    if (noteIn) body.note_in = noteIn;
-    if (noteOut) body.note_out = noteOut;
-
-    try {
-      await request("/time-entries", { method: "POST", body });
-      toast({ title: "Batida registrada", variant: "success" });
-      e.currentTarget.reset();
-      await loadTimeEntries();
-    } catch (err: any) {
-      toast({ title: "Erro ao registrar ponto", description: err.message, variant: "error" });
-    }
-  };
-
   return (
     <div className="space-y-5">
       <PageHeader
@@ -140,7 +104,7 @@ export function HRPage() {
         subtitle="Cadastre departamentos, cargos e colaboradores com status."
         actions={
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => { loadAll(); loadTimeEntries(); }} disabled={loading}>
+            <Button size="sm" variant="outline" onClick={() => { loadAll(); }} disabled={loading}>
               Atualizar
             </Button>
             <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-48">
@@ -157,7 +121,6 @@ export function HRPage() {
         {[
           { id: "estrutura", label: "Estrutura" },
           { id: "colaboradores", label: "Colaboradores" },
-          { id: "ponto", label: "Ponto" },
         ].map((t) => (
           <Button
             key={t.id}
@@ -324,124 +287,6 @@ export function HRPage() {
                 </TBody>
               </Table>
             </div>
-          </div>
-        </Card>
-      )}
-
-      {tab === "ponto" && (
-        <Card>
-          <CardHeader className="mb-3">
-            <CardTitle>Controle de ponto</CardTitle>
-            <CardDescription>Bater entrada/saída e ver últimas marcações</CardDescription>
-          </CardHeader>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            <form className="space-y-2 rounded-lg border border-border/70 p-3" onSubmit={submitTimeEntry}>
-              <div className="flex items-center justify-between gap-2">
-                <Label className="text-sm font-semibold">Nova batida</Label>
-                <Badge variant="success">Clock</Badge>
-              </div>
-              <Select name="employee_id" defaultValue="">
-                <option value="">Selecione colaborador</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>{emp.name}</option>
-                ))}
-              </Select>
-              <Label className="text-xs text-muted-foreground">Entrada *</Label>
-              <Input type="datetime-local" name="clock_in" required />
-              <Label className="text-xs text-muted-foreground">Saída (opcional)</Label>
-              <Input type="datetime-local" name="clock_out" />
-              <Label className="text-xs text-muted-foreground">Observação entrada</Label>
-              <Input name="note_in" placeholder="Ex: kiosk facial" />
-              <Label className="text-xs text-muted-foreground">Observação saída</Label>
-              <Input name="note_out" placeholder="Ex: fim do expediente" />
-              <Button type="submit" className="w-full">Registrar batida</Button>
-            </form>
-
-            <div className="rounded-lg border border-border/70 p-3 space-y-2 bg-muted/30">
-              <Label className="text-sm font-semibold">Filtros</Label>
-              <Label className="text-xs text-muted-foreground">Colaborador</Label>
-              <Select value={timeEmp} onChange={(e) => setTimeEmp(e.target.value)}>
-                <option value="">Todos</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>{emp.name}</option>
-                ))}
-              </Select>
-              <Label className="text-xs text-muted-foreground">De</Label>
-              <Input type="date" value={timeFrom} onChange={(e) => setTimeFrom(e.target.value)} />
-              <Label className="text-xs text-muted-foreground">Até</Label>
-              <Input type="date" value={timeTo} onChange={(e) => setTimeTo(e.target.value)} />
-              <Button type="button" variant="outline" onClick={loadTimeEntries}>Atualizar lista</Button>
-            </div>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="border-border/70 bg-muted/20 p-4 lg:col-span-2">
-              <CardHeader className="mb-2 p-0">
-                <CardTitle>Rosto direto no SaaS</CardTitle>
-                <CardDescription>Capture, registre e valide sem app externo.</CardDescription>
-              </CardHeader>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <Select value={faceEmployee} onChange={(e) => setFaceEmployee(e.target.value)}>
-                  <option value="">Selecione colaborador</option>
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.employee_code || `ID ${emp.id}`})</option>
-                  ))}
-                </Select>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={cameraOn ? stopCamera : startCamera}>
-                    {cameraOn ? "Parar câmera" : "Iniciar câmera"}
-                  </Button>
-                  <Button type="button" size="sm" variant="default" onClick={handleFaceClockAuto} disabled={faceLoading}>Registrar face e bater ponto</Button>
-                </div>
-                {cameraError && <div className="text-xs text-destructive">{cameraError}</div>}
-                <div className="rounded-lg border border-border/60 bg-background/80 p-2 flex flex-col items-center">
-                  <video ref={videoRef} className="w-full max-w-sm rounded-md bg-black" autoPlay playsInline muted />
-                  <canvas ref={canvasRef} className="hidden" />
-                </div>
-                {faceResult && <div className="text-xs text-foreground font-semibold">Resultado: {faceResult}</div>}
-                <p className="text-xs text-muted-foreground">Dica: boa luz frontal, rosto centralizado. O sistema usa pHash com tolerância.</p>
-              </div>
-            </Card>
-          </div>
-
-          <div className="mt-4 max-h-96 overflow-auto pr-1">
-            <Table>
-              <THead>
-                <TR>
-                  <TH>Colaborador</TH>
-                  <TH>Entrada</TH>
-                  <TH>Saída</TH>
-                  <TH>Status</TH>
-                  <TH>Obs</TH>
-                </TR>
-              </THead>
-              <TBody>
-                {timeEntries.map((t) => {
-                  const emp = employees.find((e) => e.id === t.employee_id);
-                  const open = !t.clock_out;
-                  return (
-                    <TR key={t.id}>
-                      <TD>
-                        <div className="font-semibold">{emp?.name || `ID ${t.employee_id}`}</div>
-                        <div className="text-xs text-muted-foreground">#{t.id}</div>
-                      </TD>
-                      <TD>{formatDateTime(t.clock_in)}</TD>
-                      <TD>{t.clock_out ? formatDateTime(t.clock_out) : "-"}</TD>
-                      <TD>
-                        <Badge variant={open ? "warning" : "success"}>{open ? "Aberto" : "Fechado"}</Badge>
-                      </TD>
-                      <TD>
-                        <div className="text-xs text-muted-foreground">
-                          {t.note_in && <div>In: {t.note_in}</div>}
-                          {t.note_out && <div>Out: {t.note_out}</div>}
-                        </div>
-                      </TD>
-                    </TR>
-                  );
-                })}
-              </TBody>
-            </Table>
           </div>
         </Card>
       )}
