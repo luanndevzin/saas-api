@@ -72,6 +72,33 @@ func NewRouter(db *sqlx.DB, log zerolog.Logger, jwtSecret []byte, jwtIssuer stri
 
 				r.Post("/employees", hr.CreateEmployee)
 				r.Get("/employees", hr.ListEmployees)
+				r.Get("/employees/{id}", hr.GetEmployee)
+				r.Patch("/employees/{id}", hr.UpdateEmployee)
+				r.Patch("/employees/{id}/status", hr.UpdateEmployeeStatus)
+				r.Post("/employees/{id}/compensations", hr.CreateCompensation)
+				r.Get("/employees/{id}/compensations", hr.ListCompensations)
+				r.Post("/employees/{id}/benefits", hr.AssignBenefitToEmployee)
+				r.Get("/employees/{id}/benefits", hr.ListEmployeeBenefits)
+				r.Delete("/employees/{id}/benefits/{benefit_id}", hr.RemoveBenefitFromEmployee)
+				r.Post("/employees/{id}/documents", hr.CreateEmployeeDocument)
+				r.Get("/employees/{id}/documents", hr.ListEmployeeDocuments)
+
+				r.Post("/locations", hr.CreateLocation)
+				r.Get("/locations", hr.ListLocations)
+
+				r.Post("/teams", hr.CreateTeam)
+				r.Get("/teams", hr.ListTeams)
+
+				r.Post("/time-off-types", hr.CreateTimeOffType)
+				r.Get("/time-off-types", hr.ListTimeOffTypes)
+				r.Post("/time-off-requests", hr.CreateTimeOffRequest)
+				r.Get("/time-off-requests", hr.ListTimeOffRequests)
+				r.Patch("/time-off-requests/{id}/approve", hr.ApproveTimeOff)
+				r.Patch("/time-off-requests/{id}/reject", hr.RejectTimeOff)
+				r.Patch("/time-off-requests/{id}/cancel", hr.CancelTimeOff)
+
+				r.Post("/benefits", hr.CreateBenefit)
+				r.Get("/benefits", hr.ListBenefits)
 			})
 
 			// -------------------

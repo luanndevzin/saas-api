@@ -37,16 +37,104 @@ export interface Employee {
   email?: string | null;
   status: string;
   hire_date?: string | null;
+  termination_date?: string | null;
   department_id?: number | null;
   position_id?: number | null;
+  manager_id?: number | null;
   salary_cents: number;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface CostCenter {
   id: number;
   name: string;
   code?: string | null;
+}
+
+export interface Location {
+  id: number;
+  name: string;
+  code?: string | null;
+  kind?: string | null;
+  country?: string | null;
+  state?: string | null;
+  city?: string | null;
+  created_at?: string;
+}
+
+export interface Team {
+  id: number;
+  name: string;
+  department_id?: number | null;
+  manager_employee_id?: number | null;
+  location_id?: number | null;
+  created_at?: string;
+}
+
+export interface Benefit {
+  id: number;
+  name: string;
+  provider?: string | null;
+  cost_cents: number;
+  coverage_level?: string | null;
+  created_at?: string;
+}
+
+export interface EmployeeBenefit {
+  benefit_id: number;
+  employee_id: number;
+  effective_date?: string | null;
+  name: string;
+  provider?: string | null;
+  coverage_level?: string | null;
+  cost_cents: number;
+}
+
+export interface EmployeeDocument {
+  id: number;
+  employee_id: number;
+  doc_type: string;
+  file_name?: string | null;
+  file_url: string;
+  expires_at?: string | null;
+  note?: string | null;
+  uploaded_by?: number | null;
+  created_at?: string;
+}
+
+export interface EmployeeCompensation {
+  id: number;
+  employee_id: number;
+  effective_at: string;
+  salary_cents: number;
+  adjustment_type?: string | null;
+  note?: string | null;
+  created_at?: string;
+  created_by?: number | null;
+}
+
+export interface TimeOffType {
+  id: number;
+  name: string;
+  description?: string | null;
+  requires_approval: boolean;
+  created_at?: string;
+}
+
+export interface TimeOffRequest {
+  id: number;
+  employee_id: number;
+  type_id: number;
+  status: string;
+  start_date: string;
+  end_date: string;
+  reason?: string | null;
+  decision_note?: string | null;
+  approver_id?: number | null;
+  reviewed_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Vendor {
