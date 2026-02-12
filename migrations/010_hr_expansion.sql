@@ -87,6 +87,22 @@ CREATE TABLE IF NOT EXISTS locations (
   CONSTRAINT fk_loc_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+SET @has_loc_uq_tenant_id := (
+  SELECT COUNT(*)
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'locations'
+    AND INDEX_NAME = 'uq_loc_tenant_id'
+);
+SET @sql := IF(
+  @has_loc_uq_tenant_id = 0,
+  'ALTER TABLE locations ADD UNIQUE KEY uq_loc_tenant_id (tenant_id, id)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE TABLE IF NOT EXISTS teams (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT UNSIGNED NOT NULL,
@@ -126,6 +142,22 @@ CREATE TABLE IF NOT EXISTS time_off_types (
 
   CONSTRAINT fk_tot_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+SET @has_tot_uq_tenant_id := (
+  SELECT COUNT(*)
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'time_off_types'
+    AND INDEX_NAME = 'uq_tot_tenant_id'
+);
+SET @sql := IF(
+  @has_tot_uq_tenant_id = 0,
+  'ALTER TABLE time_off_types ADD UNIQUE KEY uq_tot_tenant_id (tenant_id, id)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS time_off_requests (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -171,6 +203,22 @@ CREATE TABLE IF NOT EXISTS benefits (
 
   CONSTRAINT fk_benefit_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+SET @has_benefit_uq_tenant_id := (
+  SELECT COUNT(*)
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'benefits'
+    AND INDEX_NAME = 'uq_benefit_tenant_id'
+);
+SET @sql := IF(
+  @has_benefit_uq_tenant_id = 0,
+  'ALTER TABLE benefits ADD UNIQUE KEY uq_benefit_tenant_id (tenant_id, id)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS employee_benefits (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
