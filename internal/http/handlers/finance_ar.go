@@ -305,7 +305,7 @@ func (h *FinanceARHandler) ListReceivables(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *FinanceARHandler) IssueReceivable(w http.ResponseWriter, r *http.Request) {
-	h.transition(w, r, "draft", "issued", "issued", false)
+	h.transition(w, r, "draft", "issued", "issued")
 }
 
 func (h *FinanceARHandler) CancelReceivable(w http.ResponseWriter, r *http.Request) {
@@ -430,7 +430,7 @@ func (h *FinanceARHandler) ListReceivableEvents(w http.ResponseWriter, r *http.R
 	writeJSON(w, 200, items)
 }
 
-func (h *FinanceARHandler) transition(w http.ResponseWriter, r *http.Request, from, to, eventType string, withMethod bool) {
+func (h *FinanceARHandler) transition(w http.ResponseWriter, r *http.Request, from, to, eventType string) {
 	tenantID := mw.GetTenantID(r.Context())
 	userID := mw.GetUserID(r.Context())
 	id := chi.URLParam(r, "id")
