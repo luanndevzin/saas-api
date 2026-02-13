@@ -10,13 +10,18 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, subtitle, actions, className }: PageHeaderProps) {
   return (
-    <div className={cn("mb-5 flex flex-wrap items-start gap-3 md:items-center md:justify-between", className)}>
+    <div
+      className={cn(
+        "mb-5 flex flex-wrap items-start gap-3 rounded-2xl border border-border/70 bg-card/65 px-4 py-4 md:items-center md:justify-between",
+        className,
+      )}
+    >
       <div className="space-y-1">
         <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Painel</p>
         <h1 className="text-2xl font-bold leading-snug md:text-3xl">{title}</h1>
-        {subtitle && <p className="text-sm text-muted-foreground max-w-2xl">{subtitle}</p>}
+        {subtitle && <p className="max-w-2xl text-sm text-muted-foreground">{subtitle}</p>}
       </div>
-      {actions && <div className="flex gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
   );
 }

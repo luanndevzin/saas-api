@@ -31,6 +31,19 @@ export function FinanceARPage() {
   const [tab, setTab] = useState<Tab>("receivables");
 
   const customerMap = useMemo(() => Object.fromEntries(customers.map((c) => [c.id, c.name])), [customers]);
+  const arMetrics = useMemo(() => {
+    const total = receivables.reduce((acc, item) => acc + (item.amount_cents || 0), 0);
+    const issued = receivables
+      .filter((item) => item.status === "issued")
+      .reduce((acc, item) => acc + (item.amount_cents || 0), 0);
+    const draft = receivables
+      .filter((item) => item.status === "draft")
+      .reduce((acc, item) => acc + (item.amount_cents || 0), 0);
+    const paid = receivables
+      .filter((item) => item.status === "paid")
+      .reduce((acc, item) => acc + (item.amount_cents || 0), 0);
+    return { total, issued, draft, paid, count: receivables.length };
+  }, [receivables]);
 
   const loadAll = async () => {
     try {
@@ -122,8 +135,8 @@ export function FinanceARPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Financeiro • AR"
-        subtitle="Clientes e recebíveis com emissão e baixa."
+        title="Financeiro - AR"
+        subtitle="Clientes e recebiveis com emissao e baixa."
         actions={
           <div className="flex gap-2">
             <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-52">
@@ -148,6 +161,44 @@ export function FinanceARPage() {
             {t.label}
           </Button>
         ))}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Card>
+          <CardHeader className="mb-0">
+            <div>
+              <CardDescription>Total em carteira</CardDescription>
+              <CardTitle className="mt-1 text-2xl">{formatCents(arMetrics.total)}</CardTitle>
+            </div>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="mb-0">
+            <div>
+              <CardDescription>Valor emitido</CardDescription>
+              <CardTitle className="mt-1 text-2xl">{formatCents(arMetrics.issued)}</CardTitle>
+            </div>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="mb-0">
+            <div>
+              <CardDescription>Em rascunho</CardDescription>
+              <CardTitle className="mt-1 text-2xl">{formatCents(arMetrics.draft)}</CardTitle>
+            </div>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="mb-0">
+            <div>
+              <CardDescription>Qtd. de titulos</CardDescription>
+              <CardTitle className="mt-1 text-2xl">{arMetrics.count}</CardTitle>
+            </div>
+            <Badge variant={arMetrics.paid > 0 ? "success" : "outline"}>
+              Recebido: {formatCents(arMetrics.paid)}
+            </Badge>
+          </CardHeader>
+        </Card>
       </div>
 
       {tab === "receivables" && (

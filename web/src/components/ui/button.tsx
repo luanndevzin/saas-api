@@ -1,18 +1,18 @@
-﻿import * as React from "react";
+import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-60 ring-offset-background",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-60 ring-offset-background",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow hover:shadow-lg hover:bg-primary/90",
+        default: "bg-primary text-primary-foreground shadow hover:bg-primary/90 hover:shadow-lg",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-muted text-foreground",
-        outline: "border border-border bg-transparent hover:bg-muted",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/80",
+        ghost: "text-foreground hover:bg-muted/70",
+        outline: "border border-border bg-background/40 hover:bg-muted/65",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/85",
       },
       size: {
         xs: "h-8 px-2.5 text-xs",
@@ -50,6 +50,3 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button";
 
 export { Button, buttonVariants };
-
-
-

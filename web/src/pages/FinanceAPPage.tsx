@@ -33,6 +33,19 @@ export function FinanceAPPage() {
   const [tab, setTab] = useState<Tab>("payables");
 
   const vendorMap = useMemo(() => Object.fromEntries(vendors.map((v) => [v.id, v.name])), [vendors]);
+  const apMetrics = useMemo(() => {
+    const total = payables.reduce((acc, item) => acc + (item.amount_cents || 0), 0);
+    const pending = payables
+      .filter((item) => item.status === "pending_approval")
+      .reduce((acc, item) => acc + (item.amount_cents || 0), 0);
+    const approved = payables
+      .filter((item) => item.status === "approved")
+      .reduce((acc, item) => acc + (item.amount_cents || 0), 0);
+    const paid = payables
+      .filter((item) => item.status === "paid")
+      .reduce((acc, item) => acc + (item.amount_cents || 0), 0);
+    return { total, pending, approved, paid, count: payables.length };
+  }, [payables]);
 
   const loadAll = async () => {
     try {
@@ -121,8 +134,8 @@ export function FinanceAPPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Financeiro • AP"
-        subtitle="Gerencie fornecedores e payables com fluxo de aprovação."
+        title="Financeiro - AP"
+        subtitle="Gerencie fornecedores e titulos com fluxo de aprovacao."
         actions={
           <div className="flex gap-2">
             <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-52">
@@ -149,6 +162,44 @@ export function FinanceAPPage() {
             {t.label}
           </Button>
         ))}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Card>
+          <CardHeader className="mb-0">
+            <div>
+              <CardDescription>Total em carteira</CardDescription>
+              <CardTitle className="mt-1 text-2xl">{formatCents(apMetrics.total)}</CardTitle>
+            </div>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="mb-0">
+            <div>
+              <CardDescription>Pendente de aprovacao</CardDescription>
+              <CardTitle className="mt-1 text-2xl">{formatCents(apMetrics.pending)}</CardTitle>
+            </div>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="mb-0">
+            <div>
+              <CardDescription>Aprovado para pagar</CardDescription>
+              <CardTitle className="mt-1 text-2xl">{formatCents(apMetrics.approved)}</CardTitle>
+            </div>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="mb-0">
+            <div>
+              <CardDescription>Qtd. de titulos</CardDescription>
+              <CardTitle className="mt-1 text-2xl">{apMetrics.count}</CardTitle>
+            </div>
+            <Badge variant={apMetrics.paid > 0 ? "success" : "outline"}>
+              Pago: {formatCents(apMetrics.paid)}
+            </Badge>
+          </CardHeader>
+        </Card>
       </div>
 
       {tab === "payables" && (

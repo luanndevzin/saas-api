@@ -11,10 +11,12 @@ import {
   ChevronDown,
   CircleDot,
   Clock3,
+  Headset,
   LayoutDashboard,
-  PenSquare,
+  MoonStar,
   Plus,
   Receipt,
+  ShieldCheck,
   Users,
   Wallet,
 } from "lucide-react";
@@ -33,7 +35,7 @@ const navItems: NavItem[] = [
     label: "Dashboard",
     to: "/dashboard",
     icon: <LayoutDashboard className="h-4 w-4" />,
-    section: "Geral",
+    section: "Principal",
     description: "Visao consolidada de caixa e performance",
     roles: ["owner", "finance"],
   },
@@ -136,14 +138,30 @@ export function Shell({ children }: { children: ReactNode }) {
     }
   };
 
+  const goPrimaryAction = () => {
+    if (me?.role === "colaborador" || me?.role === "member") {
+      navigate("/ponto");
+      return;
+    }
+    if (me?.role === "hr") {
+      navigate("/hr");
+      return;
+    }
+    if (me?.role === "finance") {
+      navigate("/finance/ap");
+      return;
+    }
+    navigate("/dashboard");
+  };
+
   return (
-    <div className="min-h-screen bg-background/90">
-      <div className="grid min-h-screen lg:grid-cols-[330px_1fr]">
-        <aside className="hidden px-5 py-6 lg:flex">
-          <Card className="sidebar-shell flex h-full w-full max-w-[300px] flex-col overflow-hidden rounded-[28px] border-border/70 bg-card/95 p-0">
+    <div className="h-screen overflow-hidden bg-background/95">
+      <div className="h-full lg:pl-[326px]">
+        <aside className="fixed inset-y-4 left-4 z-30 hidden w-[300px] lg:block">
+          <Card className="sidebar-shell flex h-full flex-col overflow-hidden rounded-[28px] border-border/70 bg-card/95 p-0">
             <div className="border-b border-border/70 px-4 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary/30 text-sm font-bold text-primary-foreground">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/40 text-sm font-bold text-primary-foreground">
                   {me ? `T${me.tenantId}` : "SC"}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -157,25 +175,19 @@ export function Shell({ children }: { children: ReactNode }) {
                   </div>
                 </div>
                 <Button size="icon" variant="outline" className="h-9 w-9 rounded-full border-border/80">
-                  <PenSquare className="h-4 w-4" />
+                  <Plus className="h-4 w-4" />
                 </Button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-2 py-2">
+            <div className="flex-1 px-3 py-3">
               {Object.entries(groupedNav).map(([section, items]) => (
-                <div key={section} className="border-b border-border/60 pb-2 pt-2 last:border-b-0">
-                  <div className="mb-1 flex items-center justify-between px-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                      {section}
-                    </div>
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <Plus className="h-3.5 w-3.5" />
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </div>
+                <div key={section} className="mb-3 rounded-xl border border-border/60 bg-background/35 p-2 last:mb-0">
+                  <div className="mb-1.5 flex items-center justify-between px-1.5">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{section}</div>
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
-
-                  <nav className="space-y-0.5">
+                  <nav className="space-y-1">
                     {items.map((item) => {
                       const active = pathMatches(location.pathname, item.to);
                       return (
@@ -185,7 +197,7 @@ export function Shell({ children }: { children: ReactNode }) {
                           className={cn(
                             "block rounded-lg px-2.5 py-2 transition",
                             active
-                              ? "bg-primary/18 text-foreground"
+                              ? "border border-primary/40 bg-primary/18 text-foreground"
                               : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
                           )}
                         >
@@ -196,7 +208,6 @@ export function Shell({ children }: { children: ReactNode }) {
                             </span>
                             {active && <span className="h-2.5 w-2.5 rounded-full bg-primary" />}
                           </div>
-                          {active && <div className="mt-1 pl-6 text-[11px] text-muted-foreground">{item.description}</div>}
                         </NavLink>
                       );
                     })}
@@ -205,30 +216,42 @@ export function Shell({ children }: { children: ReactNode }) {
               ))}
             </div>
 
-            <div className="border-t border-border/70 p-3">
-              <Card className="space-y-3 border-border/70 bg-background/60 p-3">
-                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Conexao</div>
+            <div className="space-y-3 border-t border-border/70 p-3">
+              <Card className="space-y-2 border-border/70 bg-background/60 p-3">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Conexao API</span>
+                  <ShieldCheck className="h-4 w-4 text-primary" />
+                </div>
                 <div className="truncate text-xs text-foreground">{baseUrl}</div>
-                <Button size="sm" variant="outline" onClick={handleHealth} disabled={checking} className="w-full">
-                  {checking ? "Checando..." : "Verificar API"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button size="sm" className="flex-1" onClick={goPrimaryAction}>
+                    Abrir modulo
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1" onClick={handleHealth} disabled={checking}>
+                    {checking ? "..." : "Check"}
+                  </Button>
+                </div>
               </Card>
+              <div className="flex items-center justify-between rounded-xl border border-border/70 bg-background/50 px-3 py-2 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <Headset className="h-4 w-4" /> Suporte
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <MoonStar className="h-4 w-4" /> Dark
+                </span>
+              </div>
             </div>
           </Card>
         </aside>
 
-        <div className="flex min-h-screen flex-col px-2 pb-4 pt-3 lg:px-6 lg:pt-6">
-          <header className="sticky top-0 z-20 rounded-2xl border border-border/60 bg-card/80 backdrop-blur">
+        <div className="flex h-full min-h-0 flex-col px-2 pb-4 pt-3 lg:px-6 lg:pt-4">
+          <header className="rounded-2xl border border-border/60 bg-card/80 backdrop-blur">
             <div className="px-4 py-3">
               <div className="flex flex-wrap items-start gap-3">
                 <div className="space-y-0.5">
-                  <div className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                    {activeItem?.section || "Painel"}
-                  </div>
+                  <div className="text-xs uppercase tracking-[0.12em] text-muted-foreground">{activeItem?.section || "Painel"}</div>
                   <div className="text-lg font-bold text-foreground">{activeItem?.label || "SaaS Control Panel"}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {activeItem?.description || "Navegacao principal do tenant"}
-                  </div>
+                  <div className="text-xs text-muted-foreground">{activeItem?.description || "Navegacao principal do tenant"}</div>
                 </div>
 
                 <div className="ml-auto flex flex-wrap items-center gap-2 text-xs">
@@ -270,7 +293,7 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           </header>
 
-          <main className="container py-6">
+          <main className="container mt-4 flex-1 overflow-y-auto pb-6">
             {token ? null : (
               <Card className="mb-5 border-dashed border-primary/40 bg-primary/5 text-sm text-muted-foreground">
                 <div className="flex flex-wrap items-center justify-between gap-2">
