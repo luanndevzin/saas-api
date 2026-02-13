@@ -1,10 +1,9 @@
-import { ReactNode, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { NavLink as RouterNavLink, useLocation, useNavigate } from "react-router-dom";
 import { useDisclosure } from "@mantine/hooks";
 import {
   ActionIcon,
   AppShell,
-  Badge,
   Box,
   Burger,
   Button,
@@ -42,6 +41,12 @@ interface NavItem {
   section: string;
   description: string;
   roles?: string[];
+  children?: Array<{
+    label: string;
+    to: string;
+    description?: string;
+    tab?: "estrutura" | "colaboradores" | "folgas" | "ponto";
+  }>;
 }
 
 const navItems: NavItem[] = [
@@ -76,6 +81,12 @@ const navItems: NavItem[] = [
     section: "Pessoas",
     description: "Estrutura, colaboradores e beneficios",
     roles: ["owner", "hr"],
+    children: [
+      { label: "Estrutura", to: "/hr?secao=estrutura", tab: "estrutura" },
+      { label: "Colaboradores", to: "/hr?secao=colaboradores", tab: "colaboradores" },
+      { label: "Folgas e beneficios", to: "/hr?secao=folgas", tab: "folgas" },
+      { label: "Ponto (Clockify)", to: "/hr?secao=ponto", tab: "ponto" },
+    ],
   },
   {
     label: "Meu Ponto",
@@ -96,8 +107,15 @@ const navItems: NavItem[] = [
 ];
 
 function pathMatches(pathname: string, to: string) {
-  if (to === "/dashboard") return pathname === "/dashboard";
-  return pathname === to || pathname.startsWith(`${to}/`);
+  const targetPath = to.split("?")[0];
+  if (targetPath === "/dashboard") return pathname === "/dashboard";
+  return pathname === targetPath || pathname.startsWith(`${targetPath}/`);
+}
+
+function readHRSection(search: string): "estrutura" | "colaboradores" | "folgas" | "ponto" {
+  const value = new URLSearchParams(search).get("secao");
+  if (value === "colaboradores" || value === "folgas" || value === "ponto") return value;
+  return "estrutura";
 }
 
 function roleLabel(role?: string) {
@@ -121,6 +139,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const [checking, setChecking] = useState(false);
   const [mobileOpened, { toggle, close }] = useDisclosure(false);
+  const [hrMenuOpened, setHrMenuOpened] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -140,6 +159,14 @@ export function Shell({ children }: { children: ReactNode }) {
   const activeItem = useMemo(() => {
     return filteredNav.find((item) => pathMatches(location.pathname, item.to)) || null;
   }, [filteredNav, location.pathname]);
+
+  const activeHRSection = useMemo(() => readHRSection(location.search), [location.search]);
+
+  useEffect(() => {
+    if (location.pathname === "/hr") {
+      setHrMenuOpened(true);
+    }
+  }, [location.pathname]);
 
   const handleHealth = async () => {
     setChecking(true);
@@ -205,15 +232,19 @@ export function Shell({ children }: { children: ReactNode }) {
           </Group>
 
           <Group gap="xs" wrap="nowrap">
-            {me && <Badge variant="outline">Tenant {me.tenantId}</Badge>}
-            {token ? <Badge color="teal">Token ativo</Badge> : <Badge color="yellow">Sem token</Badge>}
-            {me && <Badge color="gray">{roleLabel(me.role)}</Badge>}
             {me ? (
-              <ActionIcon variant="light" color="red" onClick={handleLogout} title="Sair">
-                <LogOut className="h-4 w-4" />
-              </ActionIcon>
+              <>
+                <Text size="sm" c="dimmed">
+                  {roleLabel(me.role)}
+                </Text>
+                <ActionIcon variant="light" color="red" onClick={handleLogout} title="Sair">
+                  <LogOut className="h-4 w-4" />
+                </ActionIcon>
+              </>
             ) : (
-              <Button size="xs" variant="light" onClick={() => navigate("/login")}>Entrar</Button>
+              <Button size="xs" variant="light" onClick={() => navigate("/login")}>
+                Entrar
+              </Button>
             )}
           </Group>
         </Group>
@@ -253,6 +284,72 @@ export function Shell({ children }: { children: ReactNode }) {
                 <Stack gap={4}>
                   {items.map((item) => {
                     const active = pathMatches(location.pathname, item.to);
+                    const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+                    const isHREntry = item.to === "/hr";
+                    const isOpen = isHREntry ? hrMenuOpened : false;
+
+                    if (hasChildren) {
+                      return (
+                        <MantineNavLink
+                          key={item.to}
+                          variant={active ? "filled" : "subtle"}
+                          color={active ? "cyan" : "gray"}
+                          label={item.label}
+                          description={item.description}
+                          leftSection={item.icon}
+                          active={active}
+                          opened={isOpen}
+                          childrenOffset={16}
+                          onClick={() => {
+                            if (isHREntry) {
+                              setHrMenuOpened((prev) => !prev);
+                              if (location.pathname !== "/hr") {
+                                navigate("/hr?secao=estrutura");
+                              }
+                            }
+                          }}
+                          rightSection={
+                            <ChevronDown className={`h-3 w-3 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                          }
+                          styles={{
+                            root: {
+                              borderRadius: 10,
+                            },
+                            description: {
+                              lineHeight: 1.2,
+                              opacity: 0.8,
+                            },
+                          }}
+                        >
+                          {item.children!.map((child) => {
+                            const childActive =
+                              isHREntry && location.pathname === "/hr"
+                                ? activeHRSection === child.tab
+                                : pathMatches(location.pathname, child.to);
+
+                            return (
+                              <MantineNavLink
+                                key={child.to}
+                                component={RouterNavLink}
+                                to={child.to}
+                                onClick={close}
+                                label={child.label}
+                                description={child.description}
+                                active={childActive}
+                                color={childActive ? "cyan" : "gray"}
+                                variant={childActive ? "light" : "subtle"}
+                                styles={{
+                                  root: {
+                                    borderRadius: 8,
+                                  },
+                                }}
+                              />
+                            );
+                          })}
+                        </MantineNavLink>
+                      );
+                    }
+
                     return (
                       <MantineNavLink
                         key={item.to}

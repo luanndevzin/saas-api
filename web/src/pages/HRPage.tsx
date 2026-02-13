@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useApi } from "../lib/api-provider";
 import {
   Benefit,
@@ -31,11 +32,6 @@ import { PageHeader } from "../components/page-header";
 
 type Tab = "estrutura" | "colaboradores" | "folgas" | "ponto";
 
-type FormTarget = {
-  id: string;
-  label: string;
-};
-
 const statusColors: Record<string, "default" | "success" | "warning" | "outline"> = {
   active: "success",
   inactive: "outline",
@@ -55,32 +51,8 @@ const numOrNull = (v: FormDataEntryValue | null) => {
   return s === "" ? null : Number(s);
 };
 
-const formTargetsByTab: Record<Tab, FormTarget[]> = {
-  estrutura: [
-    { id: "form-departamentos", label: "Departamento" },
-    { id: "form-cargos", label: "Cargo" },
-    { id: "form-locais", label: "Local" },
-    { id: "form-times", label: "Time" },
-  ],
-  colaboradores: [
-    { id: "form-colaborador-novo", label: "Novo colaborador" },
-    { id: "form-colaborador-detalhes", label: "Dados do colaborador" },
-    { id: "form-colaborador-acesso", label: "Acesso colaborador" },
-    { id: "form-colaborador-remuneracao", label: "Remuneracao" },
-    { id: "form-colaborador-beneficios", label: "Beneficios do colaborador" },
-    { id: "form-colaborador-documentos", label: "Documentos do colaborador" },
-  ],
-  folgas: [
-    { id: "form-beneficios-catalogo", label: "Catalogo de beneficios" },
-    { id: "form-tipos-folga", label: "Tipos de folga" },
-    { id: "form-solicitacoes-folga", label: "Solicitacoes de folga" },
-  ],
-  ponto: [
-    { id: "form-clockify-config", label: "Configurar Clockify" },
-    { id: "form-clockify-sync", label: "Sincronizar batidas" },
-    { id: "form-clockify-entries", label: "Historico de batidas" },
-  ],
-};
+const isTab = (value: string | null): value is Tab =>
+  value === "estrutura" || value === "colaboradores" || value === "folgas" || value === "ponto";
 
 const defaultClockifyStatus: ClockifyStatus = {
   configured: false,
@@ -96,6 +68,7 @@ const defaultClockifyStatus: ClockifyStatus = {
 export function HRPage() {
   const { request, me } = useApi();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -113,11 +86,9 @@ export function HRPage() {
   const [timeEntries, setTimeEntries] = useState<HRTimeEntry[]>([]);
   const [clockifySyncResult, setClockifySyncResult] = useState<ClockifySyncResult | null>(null);
 
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [tab, setTab] = useState<Tab>("estrutura");
-  const [formTarget, setFormTarget] = useState<string>("");
+  const tabParam = searchParams.get("secao");
+  const tab: Tab = isTab(tabParam) ? tabParam : "estrutura";
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
   const [savingClockify, setSavingClockify] = useState(false);
   const [syncingClockify, setSyncingClockify] = useState(false);
   const [creatingEmployeeAccount, setCreatingEmployeeAccount] = useState(false);
@@ -152,7 +123,6 @@ export function HRPage() {
   );
 
   const loadStructure = async () => {
-    setLoading(true);
     try {
       const [d, p, l, t] = await Promise.all([
         request<Department[]>("/departments"),
@@ -166,20 +136,15 @@ export function HRPage() {
       setTeams(toArray(t));
     } catch (err: any) {
       toast({ title: "Erro ao carregar estrutura", description: err.message, variant: "error" });
-    } finally {
-      setLoading(false);
     }
   };
 
   const loadEmployees = async () => {
-    setLoading(true);
     try {
-      const e = await request<Employee[]>(`/employees${statusFilter ? `?status=${statusFilter}` : ""}`);
+      const e = await request<Employee[]>("/employees");
       setEmployees(toArray(e));
     } catch (err: any) {
       toast({ title: "Erro ao carregar colaboradores", description: err.message, variant: "error" });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -258,28 +223,25 @@ export function HRPage() {
     loadClockifyConfig();
     loadClockifyStatus();
     loadTimeEntries();
-  }, []);
-
-  useEffect(() => {
     loadEmployees();
-  }, [statusFilter]);
+  }, []);
 
   useEffect(() => {
     if (selectedEmployeeId) loadEmployeeExtras(selectedEmployeeId);
   }, [selectedEmployeeId]);
 
   useEffect(() => {
-    setFormTarget("");
-  }, [tab]);
+    if (isTab(searchParams.get("secao"))) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("secao", "estrutura");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
-  const navigateToForm = (targetId: string) => {
-    if (!targetId) return;
-    setFormTarget(targetId);
-    const el = document.getElementById(targetId);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
+  useEffect(() => {
+    if (selectedEmployeeId && !employees.some((item) => item.id === selectedEmployeeId)) {
+      setSelectedEmployeeId(null);
     }
-  };
+  }, [employees, selectedEmployeeId]);
 
   const createDept = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -679,59 +641,7 @@ export function HRPage() {
       <PageHeader
         title="RH"
         subtitle="Estrutura organizacional, pessoas, beneficios, folgas e batidas de ponto."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                loadStructure();
-                loadEmployees();
-                loadBenefits();
-                loadTimeOff();
-                loadClockifyConfig();
-                loadClockifyStatus();
-                refreshTimeEntries();
-              }}
-              disabled={loading}
-            >
-              Atualizar
-            </Button>
-            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-48">
-              <option value="">Status: todos</option>
-              <option value="active">Ativos</option>
-              <option value="inactive">Inativos</option>
-              <option value="terminated">Demitidos</option>
-            </Select>
-            <Select value={formTarget} onChange={(e) => navigateToForm(e.target.value)} className="w-64">
-              <option value="">Ir para formulario...</option>
-              {formTargetsByTab[tab].map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-        }
       />
-
-      <div className="flex flex-wrap gap-2">
-        {[
-          { id: "estrutura", label: "Estrutura" },
-          { id: "colaboradores", label: "Colaboradores" },
-          { id: "folgas", label: "Folgas & Beneficios" },
-          { id: "ponto", label: "Ponto (Clockify)" },
-        ].map((t) => (
-          <Button
-            key={t.id}
-            size="sm"
-            variant={tab === (t.id as Tab) ? "default" : "outline"}
-            onClick={() => setTab(t.id as Tab)}
-          >
-            {t.label}
-          </Button>
-        ))}
-      </div>
 
       {tab === "estrutura" && (
         <div className="grid gap-4 lg:grid-cols-4">
