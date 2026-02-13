@@ -19,7 +19,7 @@ components:
         access_token: { type: string }
         tenant_id: { type: integer, format: int64 }
         user_id: { type: integer, format: int64 }
-        role: { type: string, enum: [owner, hr, finance, member] }
+        role: { type: string, enum: [owner, hr, finance, colaborador] }
     Member:
       type: object
       properties:
@@ -693,3 +693,4 @@ paths:
           schema: { type: integer }
       responses:
         '204': { description: removido }
+

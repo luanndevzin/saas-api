@@ -1,4 +1,4 @@
-﻿export type UserRole = "owner" | "hr" | "finance" | "member";
+export type UserRole = "owner" | "hr" | "finance" | "colaborador" | "member";
 
 export interface AuthResponse {
   access_token: string;
@@ -323,8 +323,14 @@ function translateApiMessage(status: number, data: any) {
     [/clockify connection failed/i, "Falha ao conectar com o Clockify."],
     [/employee profile not linked to user/i, "Seu usuario nao esta vinculado a um colaborador."],
     [/employee is not active/i, "Seu cadastro de colaborador nao esta ativo para bater ponto."],
+    [/employee is terminated/i, "Colaborador desligado nao pode receber acesso."],
+    [/employee email is required/i, "Defina um email no colaborador antes de criar o acesso."],
     [/you already have an open time entry/i, "Ja existe uma batida em aberto."],
     [/no open time entry found/i, "Nao ha batida em aberto para encerrar."],
+    [/colaborador role must be provisioned by hr/i, "Role colaborador so pode ser provisionada pelo RH."],
+    [/user already has elevated role/i, "Este usuario ja possui perfil administrativo neste tenant."],
+    [/user already linked to another employee/i, "Este usuario ja esta vinculado a outro colaborador."],
+    [/could not link employee account/i, "Nao foi possivel vincular o colaborador ao usuario."],
     [/unknown field/i, "Campo nao permitido no corpo da requisicao."],
     [/invalid character|cannot unmarshal/i, "JSON invalido no corpo da requisicao."],
     [/could not create/i, "Nao foi possivel concluir a criacao. Verifique os dados enviados."],
@@ -369,6 +375,8 @@ export async function apiFetch<T>(config: ApiConfig, path: string, options: ApiO
   }
   return data as T;
 }
+
+
 
 
 

@@ -110,6 +110,12 @@ func NewRouter(db *sqlx.DB, log zerolog.Logger, jwtSecret []byte, jwtIssuer stri
 				r.Get("/time-entries", hr.ListTimeEntries)
 			})
 
+			// RH-only: provisionar conta de colaborador vinculada ao cadastro de funcionario
+			pr.Group(func(r chi.Router) {
+				r.Use(mw.RequireRoles("hr"))
+				r.Post("/employees/{id}/account", hr.CreateEmployeeAccount)
+			})
+
 			// -------------------
 			// FINANCEIRO: owner + finance
 			// -------------------

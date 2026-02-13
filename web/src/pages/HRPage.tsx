@@ -65,6 +65,7 @@ const formTargetsByTab: Record<Tab, FormTarget[]> = {
   colaboradores: [
     { id: "form-colaborador-novo", label: "Novo colaborador" },
     { id: "form-colaborador-detalhes", label: "Dados do colaborador" },
+    { id: "form-colaborador-acesso", label: "Acesso colaborador" },
     { id: "form-colaborador-remuneracao", label: "Remuneracao" },
     { id: "form-colaborador-beneficios", label: "Beneficios do colaborador" },
     { id: "form-colaborador-documentos", label: "Documentos do colaborador" },
@@ -93,7 +94,7 @@ const defaultClockifyStatus: ClockifyStatus = {
 };
 
 export function HRPage() {
-  const { request } = useApi();
+  const { request, me } = useApi();
   const { toast } = useToast();
 
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -119,6 +120,7 @@ export function HRPage() {
   const [loading, setLoading] = useState(false);
   const [savingClockify, setSavingClockify] = useState(false);
   const [syncingClockify, setSyncingClockify] = useState(false);
+  const [creatingEmployeeAccount, setCreatingEmployeeAccount] = useState(false);
   const [entriesFilterStart, setEntriesFilterStart] = useState(() => {
     const now = new Date();
     const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -405,6 +407,34 @@ export function HRPage() {
       loadEmployeeExtras(selectedEmployee.id);
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "error" });
+    }
+  };
+
+  const createEmployeeAccount = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedEmployee) return;
+    const fd = new FormData(e.currentTarget);
+    setCreatingEmployeeAccount(true);
+    try {
+      const payload = {
+        name: fd.get("name") || null,
+        password: fd.get("password") || null,
+      };
+      const res = await request<{ email: string; new_user: boolean }>(
+        `/employees/${selectedEmployee.id}/account`,
+        { method: "POST", body: payload },
+      );
+      toast({
+        title: res?.new_user ? "Acesso criado" : "Acesso atualizado",
+        description: `Login do colaborador: ${res?.email || selectedEmployee.email || "-"}`,
+        variant: "success",
+      });
+      e.currentTarget.reset();
+      loadEmployees();
+    } catch (err: any) {
+      toast({ title: "Erro ao criar acesso", description: err.message, variant: "error" });
+    } finally {
+      setCreatingEmployeeAccount(false);
     }
   };
 
@@ -1418,6 +1448,39 @@ export function HRPage() {
                 <div className="p-4 text-sm text-muted-foreground">Selecione um colaborador para gerenciar.</div>
               )}
             </Card>
+
+            {me?.role === "hr" && (
+              <Card id="form-colaborador-acesso">
+                <CardHeader className="mb-2">
+                  <CardTitle>Acesso do colaborador</CardTitle>
+                  <CardDescription>Criar login com role colaborador e vinculo automatico.</CardDescription>
+                </CardHeader>
+                {selectedEmployee ? (
+                  <form className="grid grid-cols-2 gap-3 p-4 pt-0" onSubmit={createEmployeeAccount}>
+                    <div className="col-span-2 text-xs text-muted-foreground">
+                      {selectedEmployee.email
+                        ? `Email do colaborador: ${selectedEmployee.email}`
+                        : "Defina o email do colaborador em Dados do colaborador para criar o acesso."}
+                    </div>
+                    <div className="col-span-2">
+                      <Label>Nome da conta (opcional)</Label>
+                      <Input name="name" defaultValue={selectedEmployee.name} />
+                    </div>
+                    <div className="col-span-2">
+                      <Label>Senha inicial (min. 8)</Label>
+                      <Input name="password" type="password" minLength={8} placeholder="Digite uma senha inicial" />
+                    </div>
+                    <div className="col-span-2">
+                      <Button type="submit" className="w-full" disabled={creatingEmployeeAccount || !selectedEmployee.email}>
+                        {creatingEmployeeAccount ? "Salvando..." : "Criar/atualizar acesso"}
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="p-4 text-sm text-muted-foreground">Selecione um colaborador.</div>
+                )}
+              </Card>
+            )}
 
             <div className="grid gap-3 lg:grid-cols-2">
               <Card id="form-colaborador-remuneracao">

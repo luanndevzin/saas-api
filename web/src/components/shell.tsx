@@ -64,7 +64,7 @@ const navItems: NavItem[] = [
     icon: <Clock3 className="h-4 w-4" />,
     section: "Pessoas",
     description: "Bater entrada e saida e ver historico",
-    roles: ["owner", "hr", "finance", "member"],
+    roles: ["owner", "hr", "finance", "colaborador", "member"],
   },
   {
     label: "Members",

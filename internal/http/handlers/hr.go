@@ -1573,6 +1573,8 @@ func localizeHRMessage(msg string) string {
 		return "effective_at e obrigatorio"
 	case "effective_at must be YYYY-MM-DD":
 		return "effective_at deve estar no formato YYYY-MM-DD"
+	case "password must be at least 8 chars":
+		return "senha deve ter no minimo 8 caracteres"
 	case "could not create compensation":
 		return "nao foi possivel criar historico de remuneracao"
 	case "could not create location (name/code may exist)":
@@ -1631,6 +1633,20 @@ func localizeHRMessage(msg string) string {
 		return "usuario autenticado nao esta vinculado a um colaborador"
 	case "employee is not active":
 		return "colaborador nao esta ativo para bater ponto"
+	case "employee is terminated":
+		return "colaborador desligado nao pode receber conta de acesso"
+	case "employee email is required":
+		return "colaborador precisa ter email para criar conta de acesso"
+	case "user already has elevated role":
+		return "este usuario ja possui perfil administrativo neste tenant"
+	case "user already linked to another employee":
+		return "este usuario ja esta vinculado a outro colaborador"
+	case "could not create user":
+		return "nao foi possivel criar usuario para o colaborador"
+	case "could not create membership":
+		return "nao foi possivel criar permissao de acesso para o colaborador"
+	case "could not link employee account":
+		return "nao foi possivel vincular usuario ao colaborador"
 	case "you already have an open time entry":
 		return "ja existe uma batida em aberto para este colaborador"
 	case "no open time entry found":

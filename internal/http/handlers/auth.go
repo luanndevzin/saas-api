@@ -16,10 +16,10 @@ import (
 )
 
 type AuthHandler struct {
-	DB         *sqlx.DB
-	JWTSecret  []byte
-	JWTIssuer  string
-	JWTTTL     time.Duration
+	DB        *sqlx.DB
+	JWTSecret []byte
+	JWTIssuer string
+	JWTTTL    time.Duration
 }
 
 type registerReq struct {
@@ -116,9 +116,9 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusCreated, authResp{
 		AccessToken: token,
-		TenantID: tenantID,
-		UserID: userID,
-		Role: "owner",
+		TenantID:    tenantID,
+		UserID:      userID,
+		Role:        "owner",
 	})
 }
 
@@ -135,8 +135,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user struct {
-		ID           uint64        `db:"id"`
-		PasswordHash string        `db:"password_hash"`
+		ID           uint64 `db:"id"`
+		PasswordHash string `db:"password_hash"`
 	}
 	err := h.DB.Get(&user, `SELECT id, password_hash FROM users WHERE email = ?`, req.Email)
 	if err == sql.ErrNoRows {
@@ -163,6 +163,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no tenant membership", http.StatusForbidden)
 		return
 	}
+	m.Role = normalizeRole(m.Role)
 
 	token, err := h.makeToken(user.ID, m.TenantID, m.Role)
 	if err != nil {
@@ -172,9 +173,9 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, authResp{
 		AccessToken: token,
-		TenantID: m.TenantID,
-		UserID: user.ID,
-		Role: m.Role,
+		TenantID:    m.TenantID,
+		UserID:      user.ID,
+		Role:        m.Role,
 	})
 }
 
@@ -182,7 +183,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"user_id":   mw.GetUserID(r.Context()),
 		"tenant_id": mw.GetTenantID(r.Context()),
-		"role":      mw.GetRole(r.Context()),
+		"role":      normalizeRole(mw.GetRole(r.Context())),
 	})
 }
 
@@ -201,4 +202,3 @@ func (h *AuthHandler) makeToken(userID, tenantID uint64, role string) (string, e
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return t.SignedString(h.JWTSecret)
 }
-

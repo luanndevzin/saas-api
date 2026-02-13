@@ -234,6 +234,25 @@ func (h *HRHandler) ClockOut(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HRHandler) resolveEmployeeForUser(tenantID, userID uint64) (employeeForClock, bool, error) {
+	var linked employeeForClock
+	linkErr := h.DB.Get(&linked, `
+		SELECT e.id, e.name, e.email, e.status
+		FROM hr_employee_user_links l
+		JOIN employees e ON e.tenant_id = l.tenant_id AND e.id = l.employee_id
+		WHERE l.tenant_id=? AND l.user_id=? AND e.status<>'terminated'
+		ORDER BY CASE e.status WHEN 'active' THEN 0 WHEN 'inactive' THEN 1 ELSE 2 END, e.id ASC
+		LIMIT 1
+	`, tenantID, userID)
+	if linkErr == nil {
+		return linked, true, nil
+	}
+	if linkErr != sql.ErrNoRows {
+		msg := strings.ToLower(linkErr.Error())
+		if !strings.Contains(msg, "hr_employee_user_links") || !strings.Contains(msg, "doesn't exist") {
+			return employeeForClock{}, false, linkErr
+		}
+	}
+
 	var userEmail string
 	if err := h.DB.Get(&userEmail, `SELECT email FROM users WHERE id=?`, userID); err != nil {
 		if err == sql.ErrNoRows {

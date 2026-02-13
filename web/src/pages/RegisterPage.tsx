@@ -15,6 +15,7 @@ const routeByRole = (role?: UserRole) => {
       return "/hr";
     case "finance":
       return "/finance/ap";
+    case "colaborador":
     case "member":
       return "/dashboard";
     case "owner":

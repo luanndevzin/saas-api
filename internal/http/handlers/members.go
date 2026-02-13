@@ -29,8 +29,8 @@ type memberRow struct {
 type createMemberReq struct {
 	Email    string `json:"email"`
 	Name     string `json:"name"`
-	Password string `json:"password"` // obrigatório se o user ainda não existir
-	Role     string `json:"role"`     // owner/hr/finance/member (default member)
+	Password string `json:"password"` // obrigatorio se o user ainda nao existir
+	Role     string `json:"role"`     // owner/hr/finance (colaborador e provisionado pelo RH)
 }
 
 type updateRoleReq struct {
@@ -52,6 +52,10 @@ func (h *MembersHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	for i := range items {
+		items[i].Role = normalizeRole(items[i].Role)
+	}
+
 	writeJSON(w, 200, items)
 }
 
@@ -67,7 +71,7 @@ func (h *MembersHandler) CreateMember(w http.ResponseWriter, r *http.Request) {
 
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.Name = strings.TrimSpace(req.Name)
-	req.Role = strings.TrimSpace(strings.ToLower(req.Role))
+	req.Role = normalizeRole(req.Role)
 
 	if req.Email == "" {
 		http.Error(w, "email is required", 400)
@@ -75,10 +79,14 @@ func (h *MembersHandler) CreateMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Role == "" {
-		req.Role = "member"
+		req.Role = roleFinance
 	}
 	if !isValidRole(req.Role) {
 		http.Error(w, "invalid role", 400)
+		return
+	}
+	if req.Role == roleCollaborator {
+		http.Error(w, "colaborador role must be provisioned by hr", 400)
 		return
 	}
 
@@ -96,7 +104,6 @@ func (h *MembersHandler) CreateMember(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "failed to lookup user", 500)
 			return
 		}
-		// não existe: precisa criar
 		if req.Name == "" {
 			http.Error(w, "name is required for new user", 400)
 			return
@@ -119,20 +126,15 @@ func (h *MembersHandler) CreateMember(w http.ResponseWriter, r *http.Request) {
 		}
 		id64, _ := res.LastInsertId()
 		userID = uint64(id64)
-	} else {
-		// existe: se mandou name, atualiza
-		if req.Name != "" {
-			_, _ = tx.Exec(`UPDATE users SET name=? WHERE id=?`, req.Name, userID)
-		}
+	} else if req.Name != "" {
+		_, _ = tx.Exec(`UPDATE users SET name=? WHERE id=?`, req.Name, userID)
 	}
 
-	// não deixa owner criar membership pra si mesmo com role diferente (evita se quebrar)
-	if userID == requesterID && req.Role != "owner" {
+	if userID == requesterID && req.Role != roleOwner {
 		http.Error(w, "cannot change your own role here", 400)
 		return
 	}
 
-	// cria/atualiza membership
 	_, err = tx.Exec(`
 		INSERT INTO memberships (tenant_id, user_id, role)
 		VALUES (?,?,?)
@@ -148,7 +150,6 @@ func (h *MembersHandler) CreateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// retorna o registro
 	var out memberRow
 	_ = h.DB.Get(&out, `
 		SELECT u.id AS user_id, u.email, u.name, m.role, DATE_FORMAT(m.created_at, '%Y-%m-%dT%H:%i:%sZ') AS created_at
@@ -156,6 +157,7 @@ func (h *MembersHandler) CreateMember(w http.ResponseWriter, r *http.Request) {
 		JOIN users u ON u.id = m.user_id
 		WHERE m.tenant_id=? AND m.user_id=?
 	`, tenantID, userID)
+	out.Role = normalizeRole(out.Role)
 
 	writeJSON(w, 201, out)
 }
@@ -179,9 +181,13 @@ func (h *MembersHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Request
 		http.Error(w, "invalid json", 400)
 		return
 	}
-	req.Role = strings.TrimSpace(strings.ToLower(req.Role))
+	req.Role = normalizeRole(req.Role)
 	if !isValidRole(req.Role) {
 		http.Error(w, "invalid role", 400)
+		return
+	}
+	if req.Role == roleCollaborator {
+		http.Error(w, "colaborador role must be provisioned by hr", 400)
 		return
 	}
 
@@ -202,8 +208,8 @@ func (h *MembersHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// evita remover o último owner
-	if currentRole == "owner" && req.Role != "owner" {
+	currentRole = normalizeRole(currentRole)
+	if currentRole == roleOwner && req.Role != roleOwner {
 		var owners int64
 		_ = tx.Get(&owners, `SELECT COUNT(*) FROM memberships WHERE tenant_id=? AND role='owner'`, tenantID)
 		if owners <= 1 {
@@ -256,8 +262,8 @@ func (h *MembersHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// evita remover o último owner
-	if currentRole == "owner" {
+	currentRole = normalizeRole(currentRole)
+	if currentRole == roleOwner {
 		var owners int64
 		_ = tx.Get(&owners, `SELECT COUNT(*) FROM memberships WHERE tenant_id=? AND role='owner'`, tenantID)
 		if owners <= 1 {
@@ -277,15 +283,6 @@ func (h *MembersHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(204)
-}
-
-func isValidRole(role string) bool {
-	switch role {
-	case "owner", "hr", "finance", "member":
-		return true
-	default:
-		return false
-	}
 }
 
 func parseUintParam(r *http.Request, name string) (uint64, error) {

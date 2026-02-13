@@ -12,7 +12,7 @@ import { Select } from "../components/ui/select";
 import { formatDate } from "../lib/utils";
 import { PageHeader } from "../components/page-header";
 
-const roleOptions: UserRole[] = ["owner", "hr", "finance", "member"];
+const roleOptions: UserRole[] = ["owner", "hr", "finance"];
 
 export function MembersPage() {
   const { request } = useApi();
@@ -39,7 +39,7 @@ export function MembersPage() {
           email: fd.get("email"),
           name: fd.get("name") || null,
           password: fd.get("password") || null,
-          role: fd.get("role") || "member",
+          role: fd.get("role") || "finance",
         },
       });
       toast({ title: "Membro criado/atualizado", variant: "success" });
@@ -73,7 +73,7 @@ export function MembersPage() {
         <Card>
           <CardHeader className="mb-3">
             <CardTitle>Adicionar membro</CardTitle>
-            <CardDescription>Owner only</CardDescription>
+            <CardDescription>Owner only (colaborador e provisionado no RH)</CardDescription>
           </CardHeader>
           <form className="space-y-2" onSubmit={createMember}>
             <Label>Email</Label>
@@ -83,7 +83,7 @@ export function MembersPage() {
             <Label>Senha (mín. 8 se novo)</Label>
             <Input name="password" type="password" minLength={8} />
             <Label>Role</Label>
-            <Select name="role" defaultValue="member">
+            <Select name="role" defaultValue="finance">
               {roleOptions.map((r) => <option key={r} value={r}>{r}</option>)}
             </Select>
             <Button type="submit" className="w-full">Salvar</Button>
