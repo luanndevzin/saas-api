@@ -2,11 +2,14 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useApi } from "../lib/api-provider";
 import {
   Benefit,
+  ClockifyConfig,
+  ClockifySyncResult,
   Department,
   Employee,
   EmployeeBenefit,
   EmployeeCompensation,
   EmployeeDocument,
+  HRTimeEntry,
   Location,
   Position,
   Team,
@@ -22,10 +25,10 @@ import { Table, THead, TBody, TR, TH, TD } from "../components/ui/table";
 import { Select } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { Textarea } from "../components/ui/textarea";
-import { formatCents, formatDate } from "../lib/utils";
+import { formatCents, formatDate, formatDateTime } from "../lib/utils";
 import { PageHeader } from "../components/page-header";
 
-type Tab = "estrutura" | "colaboradores" | "folgas";
+type Tab = "estrutura" | "colaboradores" | "folgas" | "ponto";
 
 type FormTarget = {
   id: string;
@@ -70,6 +73,11 @@ const formTargetsByTab: Record<Tab, FormTarget[]> = {
     { id: "form-tipos-folga", label: "Tipos de folga" },
     { id: "form-solicitacoes-folga", label: "Solicitacoes de folga" },
   ],
+  ponto: [
+    { id: "form-clockify-config", label: "Configurar Clockify" },
+    { id: "form-clockify-sync", label: "Sincronizar batidas" },
+    { id: "form-clockify-entries", label: "Historico de batidas" },
+  ],
 };
 
 export function HRPage() {
@@ -87,12 +95,25 @@ export function HRPage() {
   const [employeeBenefits, setEmployeeBenefits] = useState<EmployeeBenefit[]>([]);
   const [employeeDocs, setEmployeeDocs] = useState<EmployeeDocument[]>([]);
   const [compensations, setCompensations] = useState<EmployeeCompensation[]>([]);
+  const [clockifyConfig, setClockifyConfig] = useState<ClockifyConfig>({ configured: false });
+  const [timeEntries, setTimeEntries] = useState<HRTimeEntry[]>([]);
+  const [clockifySyncResult, setClockifySyncResult] = useState<ClockifySyncResult | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [tab, setTab] = useState<Tab>("estrutura");
   const [formTarget, setFormTarget] = useState<string>("");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [savingClockify, setSavingClockify] = useState(false);
+  const [syncingClockify, setSyncingClockify] = useState(false);
+  const [entriesFilterStart, setEntriesFilterStart] = useState(() => {
+    const now = new Date();
+    const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    return first.toISOString().slice(0, 10);
+  });
+  const [entriesFilterEnd, setEntriesFilterEnd] = useState(() => {
+    return new Date().toISOString().slice(0, 10);
+  });
 
   const deptMap = useMemo(() => Object.fromEntries(departments.map((d) => [d.id, d.name])), [departments]);
   const posMap = useMemo(() => Object.fromEntries(positions.map((p) => [p.id, p.title])), [positions]);
@@ -103,6 +124,16 @@ export function HRPage() {
   const selectedEmployee = useMemo(
     () => employees.find((e) => e.id === selectedEmployeeId) || null,
     [employees, selectedEmployeeId],
+  );
+
+  const totalSyncedHours = useMemo(() => {
+    const seconds = timeEntries.reduce((acc, item) => acc + (item.duration_seconds || 0), 0);
+    return (seconds / 3600).toFixed(2);
+  }, [timeEntries]);
+
+  const runningEntriesCount = useMemo(
+    () => timeEntries.filter((item) => item.is_running).length,
+    [timeEntries],
   );
 
   const loadStructure = async () => {
@@ -159,6 +190,28 @@ export function HRPage() {
     }
   };
 
+  const loadClockifyConfig = async () => {
+    try {
+      const cfg = await request<ClockifyConfig>("/integrations/clockify");
+      setClockifyConfig(cfg || { configured: false });
+    } catch (err: any) {
+      toast({ title: "Erro ao carregar integracao Clockify", description: err.message, variant: "error" });
+    }
+  };
+
+  const loadTimeEntries = async (startDate = entriesFilterStart, endDate = entriesFilterEnd) => {
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("start_date", startDate);
+      if (endDate) params.set("end_date", endDate);
+      params.set("limit", "500");
+      const items = await request<HRTimeEntry[]>(`/time-entries?${params.toString()}`);
+      setTimeEntries(toArray(items));
+    } catch (err: any) {
+      toast({ title: "Erro ao carregar batidas", description: err.message, variant: "error" });
+    }
+  };
+
   const loadEmployeeExtras = async (id: number) => {
     try {
       const [comps, docs, ben] = await Promise.all([
@@ -178,6 +231,8 @@ export function HRPage() {
     loadStructure();
     loadBenefits();
     loadTimeOff();
+    loadClockifyConfig();
+    loadTimeEntries();
   }, []);
 
   useEffect(() => {
@@ -473,18 +528,80 @@ export function HRPage() {
   const changeRequestStatus = async (req: TimeOffRequest, action: "approve" | "reject" | "cancel") => {
     try {
       await request(`/time-off-requests/${req.id}/${action}`, { method: "PATCH" });
-      toast({ title: `Solicitação ${action}`, variant: "success" });
+      toast({ title: `Solicitacao ${action}`, variant: "success" });
       loadTimeOff();
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "error" });
     }
   };
 
+  const saveClockifyConfig = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setSavingClockify(true);
+    try {
+      const payload = {
+        api_key: (fd.get("api_key") || "").toString().trim(),
+        workspace_id: (fd.get("workspace_id") || "").toString().trim(),
+      };
+      const cfg = await request<ClockifyConfig>("/integrations/clockify", { method: "POST", body: payload });
+      setClockifyConfig(cfg);
+      toast({ title: "Clockify configurado", variant: "success" });
+      e.currentTarget.reset();
+    } catch (err: any) {
+      toast({ title: "Erro ao salvar Clockify", description: err.message, variant: "error" });
+    } finally {
+      setSavingClockify(false);
+    }
+  };
+
+  const syncClockify = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!clockifyConfig.configured) {
+      toast({
+        title: "Clockify nao configurado",
+        description: "Configure API key e workspace antes de sincronizar.",
+        variant: "error",
+      });
+      return;
+    }
+
+    const fd = new FormData(e.currentTarget);
+    const startDate = (fd.get("start_date") || "").toString().trim();
+    const endDate = (fd.get("end_date") || "").toString().trim();
+    setSyncingClockify(true);
+    try {
+      const result = await request<ClockifySyncResult>("/integrations/clockify/sync", {
+        method: "POST",
+        body: { start_date: startDate, end_date: endDate },
+      });
+      setClockifySyncResult(result);
+      setEntriesFilterStart(startDate);
+      setEntriesFilterEnd(endDate);
+      await loadTimeEntries(startDate, endDate);
+      toast({
+        title: "Sincronizacao concluida",
+        description: `${result.entries_upserted} batidas importadas.`,
+        variant: "success",
+      });
+    } catch (err: any) {
+      toast({ title: "Erro ao sincronizar Clockify", description: err.message, variant: "error" });
+    } finally {
+      setSyncingClockify(false);
+    }
+  };
+
+  const refreshTimeEntries = async () => {
+    await loadTimeEntries(entriesFilterStart, entriesFilterEnd);
+  };
+
+  const formatHours = (seconds: number) => `${(seconds / 3600).toFixed(2)} h`;
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="RH"
-        subtitle="Estrutura organizacional, pessoas, beneficios e folgas."
+        subtitle="Estrutura organizacional, pessoas, beneficios, folgas e batidas de ponto."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -495,6 +612,8 @@ export function HRPage() {
                 loadEmployees();
                 loadBenefits();
                 loadTimeOff();
+                loadClockifyConfig();
+                refreshTimeEntries();
               }}
               disabled={loading}
             >
@@ -522,7 +641,8 @@ export function HRPage() {
         {[
           { id: "estrutura", label: "Estrutura" },
           { id: "colaboradores", label: "Colaboradores" },
-          { id: "folgas", label: "Folgas & Benefícios" },
+          { id: "folgas", label: "Folgas & Beneficios" },
+          { id: "ponto", label: "Ponto (Clockify)" },
         ].map((t) => (
           <Button
             key={t.id}
@@ -885,6 +1005,143 @@ export function HRPage() {
                       </TD>
                     </TR>
                   ))}
+                </TBody>
+              </Table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {tab === "ponto" && (
+        <div className="grid gap-4 xl:grid-cols-3">
+          <Card id="form-clockify-config">
+            <CardHeader className="mb-2">
+              <CardTitle>Integracao Clockify</CardTitle>
+              <CardDescription>Conecte a API gratuita para importar batidas.</CardDescription>
+            </CardHeader>
+            <form className="space-y-3 px-4 pb-4" onSubmit={saveClockifyConfig}>
+              <div>
+                <Label>Workspace ID</Label>
+                <Input name="workspace_id" defaultValue={clockifyConfig.workspace_id || ""} required />
+              </div>
+              <div>
+                <Label>API Key</Label>
+                <Input
+                  name="api_key"
+                  type="password"
+                  placeholder={clockifyConfig.api_key_masked || "Cole a API key do Clockify"}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={savingClockify}>
+                {savingClockify ? "Salvando..." : "Salvar integracao"}
+              </Button>
+            </form>
+            <div className="px-4 pb-4 text-xs text-muted-foreground space-y-1">
+              <div>Status: {clockifyConfig.configured ? "configurado" : "nao configurado"}</div>
+              {clockifyConfig.api_key_masked && <div>API Key: {clockifyConfig.api_key_masked}</div>}
+              {clockifyConfig.updated_at && <div>Atualizado em: {formatDateTime(clockifyConfig.updated_at)}</div>}
+            </div>
+          </Card>
+
+          <Card id="form-clockify-sync">
+            <CardHeader className="mb-2">
+              <CardTitle>Sincronizar batidas</CardTitle>
+              <CardDescription>Importe periodo e atualize o historico local.</CardDescription>
+            </CardHeader>
+            <form className="space-y-3 px-4 pb-4" onSubmit={syncClockify}>
+              <div>
+                <Label>Inicio</Label>
+                <Input
+                  name="start_date"
+                  type="date"
+                  value={entriesFilterStart}
+                  onChange={(e) => setEntriesFilterStart(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label>Fim</Label>
+                <Input
+                  name="end_date"
+                  type="date"
+                  value={entriesFilterEnd}
+                  onChange={(e) => setEntriesFilterEnd(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={syncingClockify || !clockifyConfig.configured}>
+                {syncingClockify ? "Sincronizando..." : "Sincronizar com Clockify"}
+              </Button>
+              <Button type="button" className="w-full" variant="outline" onClick={refreshTimeEntries}>
+                Recarregar historico
+              </Button>
+            </form>
+
+            {clockifySyncResult && (
+              <div className="space-y-1 px-4 pb-4 text-xs text-muted-foreground">
+                <div>Periodo: {clockifySyncResult.range_start} ate {clockifySyncResult.range_end}</div>
+                <div>Usuarios no workspace: {clockifySyncResult.users_found}</div>
+                <div>Colaboradores mapeados: {clockifySyncResult.employees_mapped}</div>
+                <div>Batidas processadas: {clockifySyncResult.entries_processed}</div>
+                <div>Batidas gravadas: {clockifySyncResult.entries_upserted}</div>
+              </div>
+            )}
+          </Card>
+
+          <Card id="form-clockify-entries" className="xl:col-span-3">
+            <CardHeader className="mb-2">
+              <CardTitle>Historico de batidas</CardTitle>
+              <CardDescription>Leitura local do que foi sincronizado do Clockify.</CardDescription>
+            </CardHeader>
+            <div className="grid gap-2 px-4 pb-4 md:grid-cols-3">
+              <div className="rounded border border-border/70 bg-muted/20 px-3 py-2 text-sm">
+                <div className="text-xs text-muted-foreground">Registros</div>
+                <div className="text-lg font-semibold">{timeEntries.length}</div>
+              </div>
+              <div className="rounded border border-border/70 bg-muted/20 px-3 py-2 text-sm">
+                <div className="text-xs text-muted-foreground">Horas no periodo</div>
+                <div className="text-lg font-semibold">{totalSyncedHours} h</div>
+              </div>
+              <div className="rounded border border-border/70 bg-muted/20 px-3 py-2 text-sm">
+                <div className="text-xs text-muted-foreground">Em andamento</div>
+                <div className="text-lg font-semibold">{runningEntriesCount}</div>
+              </div>
+            </div>
+            <div className="overflow-auto px-4 pb-4">
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>Colaborador</TH>
+                    <TH>Inicio</TH>
+                    <TH>Fim</TH>
+                    <TH>Duracao</TH>
+                    <TH>Descricao</TH>
+                    <TH>Status</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {timeEntries.map((entry) => (
+                    <TR key={entry.id}>
+                      <TD>{entry.employee_id ? empMap[entry.employee_id] || `#${entry.employee_id}` : "-"}</TD>
+                      <TD>{formatDateTime(entry.start_at)}</TD>
+                      <TD>{formatDateTime(entry.end_at)}</TD>
+                      <TD>{formatHours(entry.duration_seconds)}</TD>
+                      <TD className="max-w-[420px] truncate">{entry.description || "-"}</TD>
+                      <TD>
+                        <Badge variant={entry.is_running ? "warning" : "outline"}>
+                          {entry.is_running ? "em andamento" : "encerrado"}
+                        </Badge>
+                      </TD>
+                    </TR>
+                  ))}
+                  {timeEntries.length === 0 && (
+                    <TR>
+                      <TD colSpan={6} className="text-center text-sm text-muted-foreground">
+                        Nenhuma batida sincronizada para o periodo selecionado.
+                      </TD>
+                    </TR>
+                  )}
                 </TBody>
               </Table>
             </div>

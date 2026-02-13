@@ -99,6 +99,11 @@ func NewRouter(db *sqlx.DB, log zerolog.Logger, jwtSecret []byte, jwtIssuer stri
 
 				r.Post("/benefits", hr.CreateBenefit)
 				r.Get("/benefits", hr.ListBenefits)
+
+				r.Get("/integrations/clockify", hr.GetClockifyConfig)
+				r.Post("/integrations/clockify", hr.UpsertClockifyConfig)
+				r.Post("/integrations/clockify/sync", hr.SyncClockifyEntries)
+				r.Get("/time-entries", hr.ListTimeEntries)
 			})
 
 			// -------------------

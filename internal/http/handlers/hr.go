@@ -1597,6 +1597,8 @@ func localizeHRMessage(msg string) string {
 		return "employee_id deve ser numerico"
 	case "type_id must be numeric":
 		return "type_id deve ser numerico"
+	case "limit must be numeric":
+		return "limit deve ser numerico"
 	case "invalid request id":
 		return "id da solicitacao invalido"
 	case "time off request not found":
@@ -1625,6 +1627,22 @@ func localizeHRMessage(msg string) string {
 		return "expires_at deve estar no formato YYYY-MM-DD"
 	case "could not create document":
 		return "nao foi possivel criar documento"
+	case "clockify api_key is required":
+		return "api_key do Clockify e obrigatorio"
+	case "clockify workspace_id is required":
+		return "workspace_id do Clockify e obrigatorio"
+	case "clockify is not configured":
+		return "integracao Clockify nao configurada"
+	case "clockify api key is invalid":
+		return "api key do Clockify invalida"
+	case "clockify workspace not found":
+		return "workspace do Clockify nao encontrado"
+	case "clockify rate limit exceeded":
+		return "limite de requisicoes do Clockify excedido; tente novamente em instantes"
+	case "clockify request failed":
+		return "Clockify retornou erro ao processar a requisicao"
+	case "clockify connection failed":
+		return "nao foi possivel conectar no Clockify"
 	default:
 		return msg
 	}

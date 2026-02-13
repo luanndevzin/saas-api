@@ -137,6 +137,47 @@ export interface TimeOffRequest {
   updated_at?: string;
 }
 
+export interface ClockifyConfig {
+  configured: boolean;
+  workspace_id?: string;
+  api_key_masked?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ClockifySyncResult {
+  range_start: string;
+  range_end: string;
+  employees_total: number;
+  users_found: number;
+  employees_mapped: number;
+  entries_processed: number;
+  entries_upserted: number;
+  running_entries: number;
+  synced_at: string;
+}
+
+export interface HRTimeEntry {
+  id: number;
+  tenant_id: number;
+  employee_id?: number | null;
+  source: string;
+  external_entry_id: string;
+  clockify_user_id: string;
+  workspace_id: string;
+  project_id?: string | null;
+  task_id?: string | null;
+  description?: string | null;
+  start_at: string;
+  end_at?: string | null;
+  duration_seconds: number;
+  is_running: boolean;
+  billable: boolean;
+  synced_at: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Vendor {
   id: number;
   name: string;
@@ -245,6 +286,11 @@ function translateApiMessage(status: number, data: any) {
     [/must be y{4}-m{2}-d{2}|must be yyyy-mm-dd/i, "Data invalida: use o formato YYYY-MM-DD."],
     [/status must be active\\|inactive\\|terminated/i, "Status invalido. Use active, inactive ou terminated."],
     [/invalid status transition/i, "Transicao de status invalida."],
+    [/clockify api key is invalid/i, "API key do Clockify invalida."],
+    [/clockify workspace not found/i, "Workspace do Clockify nao encontrado."],
+    [/clockify is not configured/i, "Integracao com Clockify nao configurada."],
+    [/clockify rate limit exceeded/i, "Clockify no limite de requisicoes. Tente novamente em instantes."],
+    [/clockify connection failed/i, "Falha ao conectar com o Clockify."],
     [/unknown field/i, "Campo nao permitido no corpo da requisicao."],
     [/invalid character|cannot unmarshal/i, "JSON invalido no corpo da requisicao."],
     [/could not create/i, "Nao foi possivel concluir a criacao. Verifique os dados enviados."],
