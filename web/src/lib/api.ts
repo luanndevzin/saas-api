@@ -206,10 +206,57 @@ export class ApiError extends Error {
   status: number;
   data: any;
   constructor(status: number, data: any) {
-    super(typeof data === "string" ? data : data?.error || "API error");
+    super(translateApiMessage(status, data));
     this.status = status;
     this.data = data;
   }
+}
+
+function readRawMessage(data: any) {
+  if (typeof data === "string") return data;
+  if (typeof data?.error === "string") return data.error;
+  if (typeof data?.message === "string") return data.message;
+  return "";
+}
+
+function translateApiMessage(status: number, data: any) {
+  const raw = readRawMessage(data).trim();
+  const source = raw.toLowerCase();
+
+  if (status === 401) return "Sessao expirada ou nao autorizada. Faca login novamente.";
+  if (status === 403) return "Voce nao tem permissao para executar esta acao.";
+  if (status === 404 && !raw) return "Recurso nao encontrado.";
+  if (status >= 500 && !raw) return "Erro interno da API. Tente novamente em instantes.";
+
+  const rules: Array<[RegExp, string]> = [
+    [/failed to fetch|networkerror|network request failed/i, "Nao foi possivel conectar com a API."],
+    [/db error/i, "Erro interno no banco de dados."],
+    [/db read error/i, "Erro ao consultar dados no banco."],
+    [/db commit error/i, "Erro ao confirmar operacao no banco."],
+    [/db update error/i, "Erro ao atualizar dados no banco."],
+    [/db delete error/i, "Erro ao remover dados no banco."],
+    [/name is required/i, "Nome e obrigatorio."],
+    [/title is required/i, "Titulo e obrigatorio."],
+    [/employee not found/i, "Colaborador nao encontrado."],
+    [/benefit not found/i, "Beneficio nao encontrado."],
+    [/invalid employee id/i, "ID de colaborador invalido."],
+    [/invalid request id/i, "ID de solicitacao invalido."],
+    [/invalid benefit id/i, "ID de beneficio invalido."],
+    [/must be y{4}-m{2}-d{2}|must be yyyy-mm-dd/i, "Data invalida: use o formato YYYY-MM-DD."],
+    [/status must be active\\|inactive\\|terminated/i, "Status invalido. Use active, inactive ou terminated."],
+    [/invalid status transition/i, "Transicao de status invalida."],
+    [/unknown field/i, "Campo nao permitido no corpo da requisicao."],
+    [/invalid character|cannot unmarshal/i, "JSON invalido no corpo da requisicao."],
+    [/could not create/i, "Nao foi possivel concluir a criacao. Verifique os dados enviados."],
+  ];
+
+  for (const [pattern, message] of rules) {
+    if (pattern.test(source)) return message;
+  }
+
+  if (raw) return raw;
+  if (status >= 500) return "Erro interno da API. Tente novamente em instantes.";
+  return "Nao foi possivel concluir a requisicao.";
 }
 
 export type ApiConfig = {

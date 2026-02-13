@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -256,12 +257,12 @@ func (h *HRHandler) CreateDepartment(w http.ResponseWriter, r *http.Request) {
 
 	var req createDepartmentReq
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
+		httpError(w, "name is required", http.StatusBadRequest)
 		return
 	}
 	if req.Code != nil {
@@ -275,7 +276,7 @@ func (h *HRHandler) CreateDepartment(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
@@ -286,21 +287,21 @@ func (h *HRHandler) CreateDepartment(w http.ResponseWriter, r *http.Request) {
 		tenantID, req.Name, req.Code, userID, userID,
 	)
 	if err != nil {
-		http.Error(w, "could not create department (name/code may exist)", http.StatusBadRequest)
+		httpError(w, "could not create department (name/code may exist)", http.StatusBadRequest)
 		return
 	}
 	id64, _ := res.LastInsertId()
 
 	var dept Department
 	if err := tx.Get(&dept, `SELECT id, tenant_id, name, code, created_at, updated_at FROM departments WHERE tenant_id=? AND id=?`, tenantID, id64); err != nil {
-		http.Error(w, "db read error", http.StatusInternalServerError)
+		httpError(w, "db read error", http.StatusInternalServerError)
 		return
 	}
 
 	_ = insertAudit(tx, r, tenantID, userID, "create", "departments", id64, nil, dept)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 
@@ -312,7 +313,7 @@ func (h *HRHandler) ListDepartments(w http.ResponseWriter, r *http.Request) {
 
 	var items []Department
 	if err := h.DB.Select(&items, `SELECT id, tenant_id, name, code, created_at, updated_at FROM departments WHERE tenant_id=? ORDER BY name ASC`, tenantID); err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, items)
@@ -324,12 +325,12 @@ func (h *HRHandler) CreatePosition(w http.ResponseWriter, r *http.Request) {
 
 	var req createPositionReq
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	req.Title = strings.TrimSpace(req.Title)
 	if req.Title == "" {
-		http.Error(w, "title is required", http.StatusBadRequest)
+		httpError(w, "title is required", http.StatusBadRequest)
 		return
 	}
 	if req.Level != nil {
@@ -343,7 +344,7 @@ func (h *HRHandler) CreatePosition(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
@@ -354,21 +355,21 @@ func (h *HRHandler) CreatePosition(w http.ResponseWriter, r *http.Request) {
 		tenantID, req.DepartmentID, req.Title, req.Level, userID, userID,
 	)
 	if err != nil {
-		http.Error(w, "could not create position (title may exist, or invalid department_id)", http.StatusBadRequest)
+		httpError(w, "could not create position (title may exist, or invalid department_id)", http.StatusBadRequest)
 		return
 	}
 	id64, _ := res.LastInsertId()
 
 	var pos Position
 	if err := tx.Get(&pos, `SELECT id, tenant_id, department_id, title, level, created_at, updated_at FROM positions WHERE tenant_id=? AND id=?`, tenantID, id64); err != nil {
-		http.Error(w, "db read error", http.StatusInternalServerError)
+		httpError(w, "db read error", http.StatusInternalServerError)
 		return
 	}
 
 	_ = insertAudit(tx, r, tenantID, userID, "create", "positions", id64, nil, pos)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 
@@ -380,7 +381,7 @@ func (h *HRHandler) ListPositions(w http.ResponseWriter, r *http.Request) {
 
 	var items []Position
 	if err := h.DB.Select(&items, `SELECT id, tenant_id, department_id, title, level, created_at, updated_at FROM positions WHERE tenant_id=? ORDER BY title ASC`, tenantID); err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, items)
@@ -392,12 +393,12 @@ func (h *HRHandler) CreateEmployee(w http.ResponseWriter, r *http.Request) {
 
 	var req createEmployeeReq
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
+		httpError(w, "name is required", http.StatusBadRequest)
 		return
 	}
 	if req.Email != nil {
@@ -414,7 +415,7 @@ func (h *HRHandler) CreateEmployee(w http.ResponseWriter, r *http.Request) {
 		status = strings.TrimSpace(strings.ToLower(*req.Status))
 	}
 	if status != "active" && status != "inactive" && status != "terminated" {
-		http.Error(w, "status must be active|inactive|terminated", http.StatusBadRequest)
+		httpError(w, "status must be active|inactive|terminated", http.StatusBadRequest)
 		return
 	}
 
@@ -422,7 +423,7 @@ func (h *HRHandler) CreateEmployee(w http.ResponseWriter, r *http.Request) {
 	if req.HireDate != nil && strings.TrimSpace(*req.HireDate) != "" {
 		t, err := time.Parse("2006-01-02", strings.TrimSpace(*req.HireDate))
 		if err != nil {
-			http.Error(w, "hire_date must be YYYY-MM-DD", http.StatusBadRequest)
+			httpError(w, "hire_date must be YYYY-MM-DD", http.StatusBadRequest)
 			return
 		}
 		hireDate = &t
@@ -432,7 +433,7 @@ func (h *HRHandler) CreateEmployee(w http.ResponseWriter, r *http.Request) {
 	if req.SalaryCents != nil {
 		salary = *req.SalaryCents
 		if salary < 0 {
-			http.Error(w, "salary_cents must be >= 0", http.StatusBadRequest)
+			httpError(w, "salary_cents must be >= 0", http.StatusBadRequest)
 			return
 		}
 	}
@@ -443,7 +444,7 @@ func (h *HRHandler) CreateEmployee(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
@@ -457,7 +458,7 @@ func (h *HRHandler) CreateEmployee(w http.ResponseWriter, r *http.Request) {
 		req.DepartmentID, req.PositionID, managerID, salary, userID, userID,
 	)
 	if err != nil {
-		http.Error(w, "could not create employee (invalid dept/position?)", http.StatusBadRequest)
+		httpError(w, "could not create employee (invalid dept/position?)", http.StatusBadRequest)
 		return
 	}
 	id64, _ := res.LastInsertId()
@@ -468,14 +469,14 @@ func (h *HRHandler) CreateEmployee(w http.ResponseWriter, r *http.Request) {
 		       department_id, position_id, manager_id, salary_cents, created_at, updated_at
 		FROM employees
 		WHERE tenant_id=? AND id=?`, tenantID, id64); err != nil {
-		http.Error(w, "db read error", http.StatusInternalServerError)
+		httpError(w, "db read error", http.StatusInternalServerError)
 		return
 	}
 
 	_ = insertAudit(tx, r, tenantID, userID, "create", "employees", id64, nil, emp)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 
@@ -488,7 +489,7 @@ func (h *HRHandler) ListEmployees(w http.ResponseWriter, r *http.Request) {
 	// filtros simples via querystring
 	status := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("status")))
 	if status != "" && status != "active" && status != "inactive" && status != "terminated" {
-		http.Error(w, "status filter must be active|inactive|terminated", http.StatusBadRequest)
+		httpError(w, "status filter must be active|inactive|terminated", http.StatusBadRequest)
 		return
 	}
 
@@ -500,7 +501,7 @@ func (h *HRHandler) ListEmployees(w http.ResponseWriter, r *http.Request) {
 			FROM employees
 			WHERE tenant_id=?
 			ORDER BY id DESC`, tenantID); err != nil {
-			http.Error(w, "db error", http.StatusInternalServerError)
+			httpError(w, "db error", http.StatusInternalServerError)
 			return
 		}
 	} else {
@@ -510,7 +511,7 @@ func (h *HRHandler) ListEmployees(w http.ResponseWriter, r *http.Request) {
 			FROM employees
 			WHERE tenant_id=? AND status=?
 			ORDER BY id DESC`, tenantID, status); err != nil {
-			http.Error(w, "db error", http.StatusInternalServerError)
+			httpError(w, "db error", http.StatusInternalServerError)
 			return
 		}
 	}
@@ -522,7 +523,7 @@ func (h *HRHandler) GetEmployee(w http.ResponseWriter, r *http.Request) {
 	tenantID := mw.GetTenantID(r.Context())
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid employee id", http.StatusBadRequest)
+		httpError(w, "invalid employee id", http.StatusBadRequest)
 		return
 	}
 
@@ -532,7 +533,7 @@ func (h *HRHandler) GetEmployee(w http.ResponseWriter, r *http.Request) {
 		       department_id, position_id, manager_id, salary_cents, created_at, updated_at
 		FROM employees
 		WHERE tenant_id=? AND id=?`, tenantID, id); err != nil {
-		http.Error(w, "employee not found", http.StatusNotFound)
+		httpError(w, "employee not found", http.StatusNotFound)
 		return
 	}
 	writeJSON(w, http.StatusOK, emp)
@@ -544,19 +545,19 @@ func (h *HRHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
-		http.Error(w, "invalid employee id", http.StatusBadRequest)
+		httpError(w, "invalid employee id", http.StatusBadRequest)
 		return
 	}
 
 	var req updateEmployeeReq
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
@@ -566,7 +567,7 @@ func (h *HRHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
 		SELECT id, tenant_id, employee_code, name, email, status, hire_date, termination_date,
 		       department_id, position_id, manager_id, salary_cents, created_at, updated_at
 		FROM employees WHERE tenant_id=? AND id=?`, tenantID, id); err != nil {
-		http.Error(w, "employee not found", http.StatusNotFound)
+		httpError(w, "employee not found", http.StatusNotFound)
 		return
 	}
 
@@ -575,7 +576,7 @@ func (h *HRHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
 	if req.Name != nil {
 		after.Name = strings.TrimSpace(*req.Name)
 		if after.Name == "" {
-			http.Error(w, "name cannot be empty", http.StatusBadRequest)
+			httpError(w, "name cannot be empty", http.StatusBadRequest)
 			return
 		}
 	}
@@ -588,7 +589,7 @@ func (h *HRHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
 		} else {
 			t, err := time.Parse("2006-01-02", strings.TrimSpace(*req.HireDate))
 			if err != nil {
-				http.Error(w, "hire_date must be YYYY-MM-DD", http.StatusBadRequest)
+				httpError(w, "hire_date must be YYYY-MM-DD", http.StatusBadRequest)
 				return
 			}
 			after.HireDate = &t
@@ -600,7 +601,7 @@ func (h *HRHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
 		} else {
 			t, err := time.Parse("2006-01-02", strings.TrimSpace(*req.TerminationDate))
 			if err != nil {
-				http.Error(w, "termination_date must be YYYY-MM-DD", http.StatusBadRequest)
+				httpError(w, "termination_date must be YYYY-MM-DD", http.StatusBadRequest)
 				return
 			}
 			after.TerminationDate = &t
@@ -609,7 +610,7 @@ func (h *HRHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
 	if req.Status != nil {
 		s := strings.TrimSpace(strings.ToLower(*req.Status))
 		if s != "active" && s != "inactive" && s != "terminated" {
-			http.Error(w, "status must be active|inactive|terminated", http.StatusBadRequest)
+			httpError(w, "status must be active|inactive|terminated", http.StatusBadRequest)
 			return
 		}
 		after.Status = s
@@ -631,7 +632,7 @@ func (h *HRHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.SalaryCents != nil {
 		if *req.SalaryCents < 0 {
-			http.Error(w, "salary_cents must be >= 0", http.StatusBadRequest)
+			httpError(w, "salary_cents must be >= 0", http.StatusBadRequest)
 			return
 		}
 		after.SalaryCents = *req.SalaryCents
@@ -646,7 +647,7 @@ func (h *HRHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
 		after.DepartmentID, after.PositionID, after.ManagerID, after.SalaryCents, userID,
 		tenantID, id,
 	); err != nil {
-		http.Error(w, "db update error", http.StatusInternalServerError)
+		httpError(w, "db update error", http.StatusInternalServerError)
 		return
 	}
 
@@ -659,7 +660,7 @@ func (h *HRHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
 	_ = insertAudit(tx, r, tenantID, userID, "update", "employees", int64(id), before, persisted)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 
@@ -672,24 +673,24 @@ func (h *HRHandler) UpdateEmployeeStatus(w http.ResponseWriter, r *http.Request)
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
-		http.Error(w, "invalid employee id", http.StatusBadRequest)
+		httpError(w, "invalid employee id", http.StatusBadRequest)
 		return
 	}
 
 	var req updateEmployeeStatusReq
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	req.Status = strings.TrimSpace(strings.ToLower(req.Status))
 	if req.Status != "active" && req.Status != "inactive" && req.Status != "terminated" {
-		http.Error(w, "status must be active|inactive|terminated", http.StatusBadRequest)
+		httpError(w, "status must be active|inactive|terminated", http.StatusBadRequest)
 		return
 	}
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
@@ -699,7 +700,7 @@ func (h *HRHandler) UpdateEmployeeStatus(w http.ResponseWriter, r *http.Request)
 		SELECT id, tenant_id, employee_code, name, email, status, hire_date, termination_date,
 		       department_id, position_id, manager_id, salary_cents, created_at, updated_at
 		FROM employees WHERE tenant_id=? AND id=?`, tenantID, id); err != nil {
-		http.Error(w, "employee not found", http.StatusNotFound)
+		httpError(w, "employee not found", http.StatusNotFound)
 		return
 	}
 
@@ -708,7 +709,7 @@ func (h *HRHandler) UpdateEmployeeStatus(w http.ResponseWriter, r *http.Request)
 		if req.TerminationDate != nil && strings.TrimSpace(*req.TerminationDate) != "" {
 			t, err := time.Parse("2006-01-02", strings.TrimSpace(*req.TerminationDate))
 			if err != nil {
-				http.Error(w, "termination_date must be YYYY-MM-DD", http.StatusBadRequest)
+				httpError(w, "termination_date must be YYYY-MM-DD", http.StatusBadRequest)
 				return
 			}
 			terminationDate = &t
@@ -721,7 +722,7 @@ func (h *HRHandler) UpdateEmployeeStatus(w http.ResponseWriter, r *http.Request)
 	if _, err := tx.Exec(`
 		UPDATE employees SET status=?, termination_date=?, updated_by=? WHERE tenant_id=? AND id=?`,
 		req.Status, terminationDate, userID, tenantID, id); err != nil {
-		http.Error(w, "db update error", http.StatusInternalServerError)
+		httpError(w, "db update error", http.StatusInternalServerError)
 		return
 	}
 
@@ -734,7 +735,7 @@ func (h *HRHandler) UpdateEmployeeStatus(w http.ResponseWriter, r *http.Request)
 	_ = insertAudit(tx, r, tenantID, userID, "update", "employees", int64(id), before, after)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 
@@ -747,40 +748,40 @@ func (h *HRHandler) CreateCompensation(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	empID, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
-		http.Error(w, "invalid employee id", http.StatusBadRequest)
+		httpError(w, "invalid employee id", http.StatusBadRequest)
 		return
 	}
 
 	var req createCompensationReq
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	req.EffectiveAt = strings.TrimSpace(req.EffectiveAt)
 	if req.EffectiveAt == "" {
-		http.Error(w, "effective_at is required", http.StatusBadRequest)
+		httpError(w, "effective_at is required", http.StatusBadRequest)
 		return
 	}
 	eff, err := time.Parse("2006-01-02", req.EffectiveAt)
 	if err != nil {
-		http.Error(w, "effective_at must be YYYY-MM-DD", http.StatusBadRequest)
+		httpError(w, "effective_at must be YYYY-MM-DD", http.StatusBadRequest)
 		return
 	}
 	if req.SalaryCents < 0 {
-		http.Error(w, "salary_cents must be >= 0", http.StatusBadRequest)
+		httpError(w, "salary_cents must be >= 0", http.StatusBadRequest)
 		return
 	}
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
 
 	var empExists int
 	if err := tx.Get(&empExists, `SELECT 1 FROM employees WHERE tenant_id=? AND id=?`, tenantID, empID); err != nil {
-		http.Error(w, "employee not found", http.StatusNotFound)
+		httpError(w, "employee not found", http.StatusNotFound)
 		return
 	}
 
@@ -789,7 +790,7 @@ func (h *HRHandler) CreateCompensation(w http.ResponseWriter, r *http.Request) {
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		tenantID, empID, eff, req.SalaryCents, cleanPtr(req.AdjustmentType), cleanPtr(req.Note), userID)
 	if err != nil {
-		http.Error(w, "could not create compensation", http.StatusBadRequest)
+		httpError(w, "could not create compensation", http.StatusBadRequest)
 		return
 	}
 	id64, _ := res.LastInsertId()
@@ -803,7 +804,7 @@ func (h *HRHandler) CreateCompensation(w http.ResponseWriter, r *http.Request) {
 	_ = insertAudit(tx, r, tenantID, userID, "create", "employee_compensations", id64, nil, comp)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 
@@ -815,7 +816,7 @@ func (h *HRHandler) ListCompensations(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	empID, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
-		http.Error(w, "invalid employee id", http.StatusBadRequest)
+		httpError(w, "invalid employee id", http.StatusBadRequest)
 		return
 	}
 
@@ -825,7 +826,7 @@ func (h *HRHandler) ListCompensations(w http.ResponseWriter, r *http.Request) {
 		FROM employee_compensations
 		WHERE tenant_id=? AND employee_id=?
 		ORDER BY effective_at ASC, id ASC`, tenantID, empID); err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, items)
@@ -837,18 +838,18 @@ func (h *HRHandler) CreateLocation(w http.ResponseWriter, r *http.Request) {
 
 	var req createLocationReq
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
+		httpError(w, "name is required", http.StatusBadRequest)
 		return
 	}
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
@@ -859,7 +860,7 @@ func (h *HRHandler) CreateLocation(w http.ResponseWriter, r *http.Request) {
 		tenantID, req.Name, cleanPtr(req.Code), cleanPtr(req.Kind), cleanPtr(req.Country),
 		cleanPtr(req.State), cleanPtr(req.City), userID, userID)
 	if err != nil {
-		http.Error(w, "could not create location (name/code may exist)", http.StatusBadRequest)
+		httpError(w, "could not create location (name/code may exist)", http.StatusBadRequest)
 		return
 	}
 	id64, _ := res.LastInsertId()
@@ -872,7 +873,7 @@ func (h *HRHandler) CreateLocation(w http.ResponseWriter, r *http.Request) {
 	_ = insertAudit(tx, r, tenantID, userID, "create", "locations", id64, nil, loc)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusCreated, loc)
@@ -886,7 +887,7 @@ func (h *HRHandler) ListLocations(w http.ResponseWriter, r *http.Request) {
 		FROM locations
 		WHERE tenant_id=?
 		ORDER BY name ASC`, tenantID); err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, items)
@@ -898,18 +899,18 @@ func (h *HRHandler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 
 	var req createTeamReq
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
+		httpError(w, "name is required", http.StatusBadRequest)
 		return
 	}
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
@@ -919,7 +920,7 @@ func (h *HRHandler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		tenantID, req.Name, req.DepartmentID, req.ManagerEmployeeID, req.LocationID, userID, userID)
 	if err != nil {
-		http.Error(w, "could not create team (name may exist)", http.StatusBadRequest)
+		httpError(w, "could not create team (name may exist)", http.StatusBadRequest)
 		return
 	}
 	id64, _ := res.LastInsertId()
@@ -932,7 +933,7 @@ func (h *HRHandler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 	_ = insertAudit(tx, r, tenantID, userID, "create", "teams", id64, nil, team)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusCreated, team)
@@ -945,7 +946,7 @@ func (h *HRHandler) ListTeams(w http.ResponseWriter, r *http.Request) {
 		SELECT id, tenant_id, name, department_id, manager_employee_id, location_id, created_at, updated_at
 		FROM teams WHERE tenant_id=?
 		ORDER BY name ASC`, tenantID); err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, items)
@@ -957,12 +958,12 @@ func (h *HRHandler) CreateTimeOffType(w http.ResponseWriter, r *http.Request) {
 
 	var req createTimeOffTypeReq
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
+		httpError(w, "name is required", http.StatusBadRequest)
 		return
 	}
 	requires := true
@@ -972,7 +973,7 @@ func (h *HRHandler) CreateTimeOffType(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
@@ -982,7 +983,7 @@ func (h *HRHandler) CreateTimeOffType(w http.ResponseWriter, r *http.Request) {
 		VALUES (?, ?, ?, ?, ?, ?)`,
 		tenantID, req.Name, cleanPtr(req.Description), requires, userID, userID)
 	if err != nil {
-		http.Error(w, "could not create time off type (name may exist)", http.StatusBadRequest)
+		httpError(w, "could not create time off type (name may exist)", http.StatusBadRequest)
 		return
 	}
 	id64, _ := res.LastInsertId()
@@ -995,7 +996,7 @@ func (h *HRHandler) CreateTimeOffType(w http.ResponseWriter, r *http.Request) {
 	_ = insertAudit(tx, r, tenantID, userID, "create", "time_off_types", id64, nil, item)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 
@@ -1009,7 +1010,7 @@ func (h *HRHandler) ListTimeOffTypes(w http.ResponseWriter, r *http.Request) {
 		SELECT id, tenant_id, name, description, requires_approval, created_at, updated_at
 		FROM time_off_types WHERE tenant_id=?
 		ORDER BY name ASC`, tenantID); err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, items)
@@ -1021,39 +1022,39 @@ func (h *HRHandler) CreateTimeOffRequest(w http.ResponseWriter, r *http.Request)
 
 	var req createTimeOffRequestReq
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	start, err := time.Parse("2006-01-02", strings.TrimSpace(req.StartDate))
 	if err != nil {
-		http.Error(w, "start_date must be YYYY-MM-DD", http.StatusBadRequest)
+		httpError(w, "start_date must be YYYY-MM-DD", http.StatusBadRequest)
 		return
 	}
 	end, err := time.Parse("2006-01-02", strings.TrimSpace(req.EndDate))
 	if err != nil {
-		http.Error(w, "end_date must be YYYY-MM-DD", http.StatusBadRequest)
+		httpError(w, "end_date must be YYYY-MM-DD", http.StatusBadRequest)
 		return
 	}
 	if end.Before(start) {
-		http.Error(w, "end_date must be >= start_date", http.StatusBadRequest)
+		httpError(w, "end_date must be >= start_date", http.StatusBadRequest)
 		return
 	}
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
 
 	var empExists int
 	if err := tx.Get(&empExists, `SELECT 1 FROM employees WHERE tenant_id=? AND id=?`, tenantID, req.EmployeeID); err != nil {
-		http.Error(w, "employee not found", http.StatusNotFound)
+		httpError(w, "employee not found", http.StatusNotFound)
 		return
 	}
 	var typeExists int
 	if err := tx.Get(&typeExists, `SELECT 1 FROM time_off_types WHERE tenant_id=? AND id=?`, tenantID, req.TypeID); err != nil {
-		http.Error(w, "time_off_type not found", http.StatusNotFound)
+		httpError(w, "time_off_type not found", http.StatusNotFound)
 		return
 	}
 
@@ -1062,7 +1063,7 @@ func (h *HRHandler) CreateTimeOffRequest(w http.ResponseWriter, r *http.Request)
 		VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
 		tenantID, req.EmployeeID, req.TypeID, start, end, cleanPtr(req.Reason), userID, userID)
 	if err != nil {
-		http.Error(w, "could not create time off request", http.StatusBadRequest)
+		httpError(w, "could not create time off request", http.StatusBadRequest)
 		return
 	}
 	id64, _ := res.LastInsertId()
@@ -1075,7 +1076,7 @@ func (h *HRHandler) CreateTimeOffRequest(w http.ResponseWriter, r *http.Request)
 	_ = insertAudit(tx, r, tenantID, userID, "create", "time_off_requests", id64, nil, item)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusCreated, item)
@@ -1085,7 +1086,7 @@ func (h *HRHandler) ListTimeOffRequests(w http.ResponseWriter, r *http.Request) 
 	tenantID := mw.GetTenantID(r.Context())
 	status := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("status")))
 	if status != "" && status != "pending" && status != "approved" && status != "rejected" && status != "canceled" {
-		http.Error(w, "status filter must be pending|approved|rejected|canceled", http.StatusBadRequest)
+		httpError(w, "status filter must be pending|approved|rejected|canceled", http.StatusBadRequest)
 		return
 	}
 
@@ -1105,7 +1106,7 @@ func (h *HRHandler) ListTimeOffRequests(w http.ResponseWriter, r *http.Request) 
 	if empIDStr != "" {
 		empID, err := strconv.ParseUint(empIDStr, 10, 64)
 		if err != nil {
-			http.Error(w, "employee_id must be numeric", http.StatusBadRequest)
+			httpError(w, "employee_id must be numeric", http.StatusBadRequest)
 			return
 		}
 		query += " AND employee_id=?"
@@ -1116,7 +1117,7 @@ func (h *HRHandler) ListTimeOffRequests(w http.ResponseWriter, r *http.Request) 
 	if typeIDStr != "" {
 		tid, err := strconv.ParseUint(typeIDStr, 10, 64)
 		if err != nil {
-			http.Error(w, "type_id must be numeric", http.StatusBadRequest)
+			httpError(w, "type_id must be numeric", http.StatusBadRequest)
 			return
 		}
 		query += " AND type_id=?"
@@ -1127,7 +1128,7 @@ func (h *HRHandler) ListTimeOffRequests(w http.ResponseWriter, r *http.Request) 
 
 	items := make([]TimeOffRequest, 0)
 	if err := h.DB.Select(&items, query, args...); err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, items)
@@ -1149,7 +1150,7 @@ func (h *HRHandler) changeTimeOffStatus(w http.ResponseWriter, r *http.Request, 
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
-		http.Error(w, "invalid request id", http.StatusBadRequest)
+		httpError(w, "invalid request id", http.StatusBadRequest)
 		return
 	}
 
@@ -1158,7 +1159,7 @@ func (h *HRHandler) changeTimeOffStatus(w http.ResponseWriter, r *http.Request, 
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
@@ -1167,7 +1168,7 @@ func (h *HRHandler) changeTimeOffStatus(w http.ResponseWriter, r *http.Request, 
 	if err := tx.Get(&before, `
 		SELECT id, tenant_id, employee_id, type_id, status, start_date, end_date, reason, decision_note, approver_id, reviewed_at, created_at, updated_at
 		FROM time_off_requests WHERE tenant_id=? AND id=?`, tenantID, id); err != nil {
-		http.Error(w, "time off request not found", http.StatusNotFound)
+		httpError(w, "time off request not found", http.StatusNotFound)
 		return
 	}
 
@@ -1179,7 +1180,7 @@ func (h *HRHandler) changeTimeOffStatus(w http.ResponseWriter, r *http.Request, 
 	} else if before.Status == "approved" && to == "canceled" {
 		// ok
 	} else {
-		http.Error(w, "invalid status transition", http.StatusBadRequest)
+		httpError(w, "invalid status transition", http.StatusBadRequest)
 		return
 	}
 
@@ -1189,7 +1190,7 @@ func (h *HRHandler) changeTimeOffStatus(w http.ResponseWriter, r *http.Request, 
 		SET status=?, decision_note=?, approver_id=?, reviewed_at=?, updated_by=?
 		WHERE tenant_id=? AND id=?`,
 		to, cleanPtr(req.Note), userID, now, userID, tenantID, id); err != nil {
-		http.Error(w, "db update error", http.StatusInternalServerError)
+		httpError(w, "db update error", http.StatusInternalServerError)
 		return
 	}
 
@@ -1201,7 +1202,7 @@ func (h *HRHandler) changeTimeOffStatus(w http.ResponseWriter, r *http.Request, 
 	_ = insertAudit(tx, r, tenantID, userID, "update", "time_off_requests", int64(id), before, after)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, after)
@@ -1213,18 +1214,18 @@ func (h *HRHandler) CreateBenefit(w http.ResponseWriter, r *http.Request) {
 
 	var req createBenefitReq
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
+		httpError(w, "name is required", http.StatusBadRequest)
 		return
 	}
 	cost := int64(0)
 	if req.CostCents != nil {
 		if *req.CostCents < 0 {
-			http.Error(w, "cost_cents must be >= 0", http.StatusBadRequest)
+			httpError(w, "cost_cents must be >= 0", http.StatusBadRequest)
 			return
 		}
 		cost = *req.CostCents
@@ -1232,7 +1233,7 @@ func (h *HRHandler) CreateBenefit(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
@@ -1242,7 +1243,7 @@ func (h *HRHandler) CreateBenefit(w http.ResponseWriter, r *http.Request) {
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		tenantID, req.Name, cleanPtr(req.Provider), cost, cleanPtr(req.CoverageLevel), userID, userID)
 	if err != nil {
-		http.Error(w, "could not create benefit (name may exist)", http.StatusBadRequest)
+		httpError(w, "could not create benefit (name may exist)", http.StatusBadRequest)
 		return
 	}
 	id64, _ := res.LastInsertId()
@@ -1255,7 +1256,7 @@ func (h *HRHandler) CreateBenefit(w http.ResponseWriter, r *http.Request) {
 	_ = insertAudit(tx, r, tenantID, userID, "create", "benefits", id64, nil, b)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusCreated, b)
@@ -1268,7 +1269,7 @@ func (h *HRHandler) ListBenefits(w http.ResponseWriter, r *http.Request) {
 		SELECT id, tenant_id, name, provider, cost_cents, coverage_level, created_at, updated_at
 		FROM benefits WHERE tenant_id=?
 		ORDER BY name ASC`, tenantID); err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, items)
@@ -1279,13 +1280,13 @@ func (h *HRHandler) AssignBenefitToEmployee(w http.ResponseWriter, r *http.Reque
 	userID := mw.GetUserID(r.Context())
 	empID, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid employee id", http.StatusBadRequest)
+		httpError(w, "invalid employee id", http.StatusBadRequest)
 		return
 	}
 
 	var req employeeBenefitReq
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -1293,7 +1294,7 @@ func (h *HRHandler) AssignBenefitToEmployee(w http.ResponseWriter, r *http.Reque
 	if req.EffectiveDate != nil && strings.TrimSpace(*req.EffectiveDate) != "" {
 		t, err := time.Parse("2006-01-02", strings.TrimSpace(*req.EffectiveDate))
 		if err != nil {
-			http.Error(w, "effective_date must be YYYY-MM-DD", http.StatusBadRequest)
+			httpError(w, "effective_date must be YYYY-MM-DD", http.StatusBadRequest)
 			return
 		}
 		effDate = &t
@@ -1301,7 +1302,7 @@ func (h *HRHandler) AssignBenefitToEmployee(w http.ResponseWriter, r *http.Reque
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
@@ -1309,11 +1310,11 @@ func (h *HRHandler) AssignBenefitToEmployee(w http.ResponseWriter, r *http.Reque
 	// ensure employee and benefit exist
 	var exists int
 	if err := tx.Get(&exists, `SELECT 1 FROM employees WHERE tenant_id=? AND id=?`, tenantID, empID); err != nil {
-		http.Error(w, "employee not found", http.StatusNotFound)
+		httpError(w, "employee not found", http.StatusNotFound)
 		return
 	}
 	if err := tx.Get(&exists, `SELECT 1 FROM benefits WHERE tenant_id=? AND id=?`, tenantID, req.BenefitID); err != nil {
-		http.Error(w, "benefit not found", http.StatusNotFound)
+		httpError(w, "benefit not found", http.StatusNotFound)
 		return
 	}
 
@@ -1321,7 +1322,7 @@ func (h *HRHandler) AssignBenefitToEmployee(w http.ResponseWriter, r *http.Reque
 		INSERT INTO employee_benefits (tenant_id, employee_id, benefit_id, effective_date, created_by)
 		VALUES (?, ?, ?, ?, ?)`,
 		tenantID, empID, req.BenefitID, effDate, userID); err != nil {
-		http.Error(w, "could not assign benefit (maybe already assigned)", http.StatusBadRequest)
+		httpError(w, "could not assign benefit (maybe already assigned)", http.StatusBadRequest)
 		return
 	}
 
@@ -1332,7 +1333,7 @@ func (h *HRHandler) AssignBenefitToEmployee(w http.ResponseWriter, r *http.Reque
 	})
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -1343,18 +1344,18 @@ func (h *HRHandler) RemoveBenefitFromEmployee(w http.ResponseWriter, r *http.Req
 	userID := mw.GetUserID(r.Context())
 	empID, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid employee id", http.StatusBadRequest)
+		httpError(w, "invalid employee id", http.StatusBadRequest)
 		return
 	}
 	benefitID, err := strconv.ParseUint(chi.URLParam(r, "benefit_id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid benefit id", http.StatusBadRequest)
+		httpError(w, "invalid benefit id", http.StatusBadRequest)
 		return
 	}
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
@@ -1363,12 +1364,12 @@ func (h *HRHandler) RemoveBenefitFromEmployee(w http.ResponseWriter, r *http.Req
 		DELETE FROM employee_benefits WHERE tenant_id=? AND employee_id=? AND benefit_id=?`,
 		tenantID, empID, benefitID)
 	if err != nil {
-		http.Error(w, "db delete error", http.StatusInternalServerError)
+		httpError(w, "db delete error", http.StatusInternalServerError)
 		return
 	}
 	affected, _ := res.RowsAffected()
 	if affected == 0 {
-		http.Error(w, "relation not found", http.StatusNotFound)
+		httpError(w, "relation not found", http.StatusNotFound)
 		return
 	}
 
@@ -1378,7 +1379,7 @@ func (h *HRHandler) RemoveBenefitFromEmployee(w http.ResponseWriter, r *http.Req
 	}, nil)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -1388,7 +1389,7 @@ func (h *HRHandler) ListEmployeeBenefits(w http.ResponseWriter, r *http.Request)
 	tenantID := mw.GetTenantID(r.Context())
 	empID, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid employee id", http.StatusBadRequest)
+		httpError(w, "invalid employee id", http.StatusBadRequest)
 		return
 	}
 
@@ -1400,7 +1401,7 @@ func (h *HRHandler) ListEmployeeBenefits(w http.ResponseWriter, r *http.Request)
 		JOIN benefits b ON b.tenant_id=eb.tenant_id AND b.id=eb.benefit_id
 		WHERE eb.tenant_id=? AND eb.employee_id=?
 		ORDER BY eb.effective_date IS NULL, eb.effective_date ASC, b.name ASC`, tenantID, empID); err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, items)
@@ -1411,23 +1412,23 @@ func (h *HRHandler) CreateEmployeeDocument(w http.ResponseWriter, r *http.Reques
 	userID := mw.GetUserID(r.Context())
 	empID, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid employee id", http.StatusBadRequest)
+		httpError(w, "invalid employee id", http.StatusBadRequest)
 		return
 	}
 
 	var req createEmployeeDocumentReq
 	if err := decodeJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	req.DocType = strings.TrimSpace(req.DocType)
 	if req.DocType == "" {
-		http.Error(w, "doc_type is required", http.StatusBadRequest)
+		httpError(w, "doc_type is required", http.StatusBadRequest)
 		return
 	}
 	req.FileURL = strings.TrimSpace(req.FileURL)
 	if req.FileURL == "" {
-		http.Error(w, "file_url is required", http.StatusBadRequest)
+		httpError(w, "file_url is required", http.StatusBadRequest)
 		return
 	}
 
@@ -1435,7 +1436,7 @@ func (h *HRHandler) CreateEmployeeDocument(w http.ResponseWriter, r *http.Reques
 	if req.ExpiresAt != nil && strings.TrimSpace(*req.ExpiresAt) != "" {
 		t, err := time.Parse("2006-01-02", strings.TrimSpace(*req.ExpiresAt))
 		if err != nil {
-			http.Error(w, "expires_at must be YYYY-MM-DD", http.StatusBadRequest)
+			httpError(w, "expires_at must be YYYY-MM-DD", http.StatusBadRequest)
 			return
 		}
 		expiresAt = &t
@@ -1443,14 +1444,14 @@ func (h *HRHandler) CreateEmployeeDocument(w http.ResponseWriter, r *http.Reques
 
 	tx, err := h.DB.Beginx()
 	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
 
 	var exists int
 	if err := tx.Get(&exists, `SELECT 1 FROM employees WHERE tenant_id=? AND id=?`, tenantID, empID); err != nil {
-		http.Error(w, "employee not found", http.StatusNotFound)
+		httpError(w, "employee not found", http.StatusNotFound)
 		return
 	}
 
@@ -1459,7 +1460,7 @@ func (h *HRHandler) CreateEmployeeDocument(w http.ResponseWriter, r *http.Reques
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		tenantID, empID, req.DocType, cleanPtr(req.FileName), req.FileURL, expiresAt, cleanPtr(req.Note), userID)
 	if err != nil {
-		http.Error(w, "could not create document", http.StatusBadRequest)
+		httpError(w, "could not create document", http.StatusBadRequest)
 		return
 	}
 	id64, _ := res.LastInsertId()
@@ -1472,7 +1473,7 @@ func (h *HRHandler) CreateEmployeeDocument(w http.ResponseWriter, r *http.Reques
 	_ = insertAudit(tx, r, tenantID, userID, "create", "employee_documents", id64, nil, doc)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "db commit error", http.StatusInternalServerError)
+		httpError(w, "db commit error", http.StatusInternalServerError)
 		return
 	}
 
@@ -1483,7 +1484,7 @@ func (h *HRHandler) ListEmployeeDocuments(w http.ResponseWriter, r *http.Request
 	tenantID := mw.GetTenantID(r.Context())
 	empID, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid employee id", http.StatusBadRequest)
+		httpError(w, "invalid employee id", http.StatusBadRequest)
 		return
 	}
 
@@ -1493,7 +1494,7 @@ func (h *HRHandler) ListEmployeeDocuments(w http.ResponseWriter, r *http.Request
 		FROM employee_documents
 		WHERE tenant_id=? AND employee_id=?
 		ORDER BY created_at DESC, id DESC`, tenantID, empID); err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
+		httpError(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, items)
@@ -1505,9 +1506,128 @@ func decodeJSON(r *http.Request, dst any) error {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(dst); err != nil {
-		return err
+		msg := err.Error()
+		switch {
+		case strings.Contains(msg, "invalid character"):
+			return fmt.Errorf("json invalido no corpo da requisicao")
+		case strings.Contains(msg, "cannot unmarshal"):
+			return fmt.Errorf("tipo de dado invalido em um ou mais campos")
+		case strings.Contains(msg, "unknown field"):
+			parts := strings.Split(msg, "\"")
+			if len(parts) >= 2 {
+				return fmt.Errorf("campo nao permitido: %s", parts[1])
+			}
+			return fmt.Errorf("campo nao permitido no corpo da requisicao")
+		default:
+			return fmt.Errorf("json invalido no corpo da requisicao")
+		}
 	}
 	return nil
+}
+
+func httpError(w http.ResponseWriter, msg string, statusCode int) {
+	http.Error(w, localizeHRMessage(msg), statusCode)
+}
+
+func localizeHRMessage(msg string) string {
+	switch strings.TrimSpace(msg) {
+	case "":
+		return "erro interno inesperado"
+	case "name is required":
+		return "nome e obrigatorio"
+	case "title is required":
+		return "titulo e obrigatorio"
+	case "db error":
+		return "erro interno no banco de dados"
+	case "db read error":
+		return "erro ao consultar dados no banco"
+	case "db commit error":
+		return "erro ao confirmar operacao no banco"
+	case "db update error":
+		return "erro ao atualizar dados no banco"
+	case "db delete error":
+		return "erro ao remover dados no banco"
+	case "could not create department (name/code may exist)":
+		return "nao foi possivel criar departamento: nome ou codigo ja existe"
+	case "could not create position (title may exist, or invalid department_id)":
+		return "nao foi possivel criar cargo: titulo duplicado ou departamento invalido"
+	case "status must be active|inactive|terminated":
+		return "status deve ser active, inactive ou terminated"
+	case "hire_date must be YYYY-MM-DD":
+		return "hire_date deve estar no formato YYYY-MM-DD"
+	case "salary_cents must be >= 0":
+		return "salary_cents deve ser maior ou igual a 0"
+	case "could not create employee (invalid dept/position?)":
+		return "nao foi possivel criar colaborador: departamento, cargo ou gestor invalido"
+	case "status filter must be active|inactive|terminated":
+		return "filtro status deve ser active, inactive ou terminated"
+	case "invalid employee id":
+		return "id do colaborador invalido"
+	case "employee not found":
+		return "colaborador nao encontrado"
+	case "name cannot be empty":
+		return "nome nao pode ser vazio"
+	case "termination_date must be YYYY-MM-DD":
+		return "termination_date deve estar no formato YYYY-MM-DD"
+	case "effective_at is required":
+		return "effective_at e obrigatorio"
+	case "effective_at must be YYYY-MM-DD":
+		return "effective_at deve estar no formato YYYY-MM-DD"
+	case "could not create compensation":
+		return "nao foi possivel criar historico de remuneracao"
+	case "could not create location (name/code may exist)":
+		return "nao foi possivel criar local: nome ou codigo ja existe"
+	case "could not create team (name may exist)":
+		return "nao foi possivel criar time: nome ja existe"
+	case "could not create time off type (name may exist)":
+		return "nao foi possivel criar tipo de folga: nome ja existe"
+	case "start_date must be YYYY-MM-DD":
+		return "start_date deve estar no formato YYYY-MM-DD"
+	case "end_date must be YYYY-MM-DD":
+		return "end_date deve estar no formato YYYY-MM-DD"
+	case "end_date must be >= start_date":
+		return "end_date deve ser maior ou igual a start_date"
+	case "time_off_type not found":
+		return "tipo de folga nao encontrado"
+	case "could not create time off request":
+		return "nao foi possivel criar solicitacao de folga"
+	case "status filter must be pending|approved|rejected|canceled":
+		return "filtro status deve ser pending, approved, rejected ou canceled"
+	case "employee_id must be numeric":
+		return "employee_id deve ser numerico"
+	case "type_id must be numeric":
+		return "type_id deve ser numerico"
+	case "invalid request id":
+		return "id da solicitacao invalido"
+	case "time off request not found":
+		return "solicitacao de folga nao encontrada"
+	case "invalid status transition":
+		return "transicao de status invalida"
+	case "cost_cents must be >= 0":
+		return "cost_cents deve ser maior ou igual a 0"
+	case "could not create benefit (name may exist)":
+		return "nao foi possivel criar beneficio: nome ja existe"
+	case "benefit not found":
+		return "beneficio nao encontrado"
+	case "effective_date must be YYYY-MM-DD":
+		return "effective_date deve estar no formato YYYY-MM-DD"
+	case "could not assign benefit (maybe already assigned)":
+		return "nao foi possivel vincular beneficio: vinculo ja existe ou dados invalidos"
+	case "invalid benefit id":
+		return "id do beneficio invalido"
+	case "relation not found":
+		return "vinculo nao encontrado"
+	case "doc_type is required":
+		return "doc_type e obrigatorio"
+	case "file_url is required":
+		return "file_url e obrigatorio"
+	case "expires_at must be YYYY-MM-DD":
+		return "expires_at deve estar no formato YYYY-MM-DD"
+	case "could not create document":
+		return "nao foi possivel criar documento"
+	default:
+		return msg
+	}
 }
 
 func genCode(prefix string) string {

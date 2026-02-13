@@ -27,6 +27,11 @@ import { PageHeader } from "../components/page-header";
 
 type Tab = "estrutura" | "colaboradores" | "folgas";
 
+type FormTarget = {
+  id: string;
+  label: string;
+};
+
 const statusColors: Record<string, "default" | "success" | "warning" | "outline"> = {
   active: "success",
   inactive: "outline",
@@ -44,6 +49,27 @@ const toArray = <T,>(v: T[] | null | undefined): T[] => (Array.isArray(v) ? v : 
 const numOrNull = (v: FormDataEntryValue | null) => {
   const s = (v ?? "").toString().trim();
   return s === "" ? null : Number(s);
+};
+
+const formTargetsByTab: Record<Tab, FormTarget[]> = {
+  estrutura: [
+    { id: "form-departamentos", label: "Departamento" },
+    { id: "form-cargos", label: "Cargo" },
+    { id: "form-locais", label: "Local" },
+    { id: "form-times", label: "Time" },
+  ],
+  colaboradores: [
+    { id: "form-colaborador-novo", label: "Novo colaborador" },
+    { id: "form-colaborador-detalhes", label: "Dados do colaborador" },
+    { id: "form-colaborador-remuneracao", label: "Remuneracao" },
+    { id: "form-colaborador-beneficios", label: "Beneficios do colaborador" },
+    { id: "form-colaborador-documentos", label: "Documentos do colaborador" },
+  ],
+  folgas: [
+    { id: "form-beneficios-catalogo", label: "Catalogo de beneficios" },
+    { id: "form-tipos-folga", label: "Tipos de folga" },
+    { id: "form-solicitacoes-folga", label: "Solicitacoes de folga" },
+  ],
 };
 
 export function HRPage() {
@@ -64,6 +90,7 @@ export function HRPage() {
 
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [tab, setTab] = useState<Tab>("estrutura");
+  const [formTarget, setFormTarget] = useState<string>("");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -160,6 +187,19 @@ export function HRPage() {
   useEffect(() => {
     if (selectedEmployeeId) loadEmployeeExtras(selectedEmployeeId);
   }, [selectedEmployeeId]);
+
+  useEffect(() => {
+    setFormTarget("");
+  }, [tab]);
+
+  const navigateToForm = (targetId: string) => {
+    if (!targetId) return;
+    setFormTarget(targetId);
+    const el = document.getElementById(targetId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
 
   const createDept = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -466,6 +506,14 @@ export function HRPage() {
               <option value="inactive">Inativos</option>
               <option value="terminated">Demitidos</option>
             </Select>
+            <Select value={formTarget} onChange={(e) => navigateToForm(e.target.value)} className="w-64">
+              <option value="">Ir para formulario...</option>
+              {formTargetsByTab[tab].map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </Select>
           </div>
         }
       />
@@ -489,7 +537,7 @@ export function HRPage() {
 
       {tab === "estrutura" && (
         <div className="grid gap-4 lg:grid-cols-4">
-          <Card>
+          <Card id="form-departamentos">
             <CardHeader className="mb-3">
               <CardTitle>Departamentos</CardTitle>
               <CardDescription>Criar + listar</CardDescription>
@@ -513,7 +561,7 @@ export function HRPage() {
             </div>
           </Card>
 
-          <Card>
+          <Card id="form-cargos">
             <CardHeader className="mb-3">
               <CardTitle>Cargos</CardTitle>
               <CardDescription>Vincule a um departamento</CardDescription>
@@ -556,7 +604,7 @@ export function HRPage() {
             </div>
           </Card>
 
-          <Card>
+          <Card id="form-locais">
             <CardHeader className="mb-3">
               <CardTitle>Locais</CardTitle>
               <CardDescription>Filiais, remoto, hubs</CardDescription>
@@ -604,7 +652,7 @@ export function HRPage() {
             </div>
           </Card>
 
-          <Card>
+          <Card id="form-times">
             <CardHeader className="mb-3">
               <CardTitle>Times</CardTitle>
               <CardDescription>Organograma leve</CardDescription>
@@ -661,7 +709,7 @@ export function HRPage() {
 
       {tab === "folgas" && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <Card>
+          <Card id="form-beneficios-catalogo">
             <CardHeader className="mb-2">
               <CardTitle>Benefícios (catálogo)</CardTitle>
               <CardDescription>Planos de saúde, VR, etc.</CardDescription>
@@ -702,7 +750,7 @@ export function HRPage() {
             </div>
           </Card>
 
-          <Card>
+          <Card id="form-tipos-folga">
             <CardHeader className="mb-2">
               <CardTitle>Tipos de folga</CardTitle>
               <CardDescription>Criar políticas (férias, atestado...)</CardDescription>
@@ -741,7 +789,7 @@ export function HRPage() {
             </div>
           </Card>
 
-          <Card className="lg:col-span-2">
+          <Card id="form-solicitacoes-folga" className="lg:col-span-2">
             <CardHeader className="mb-2">
               <CardTitle>Solicitações de folga/licença</CardTitle>
               <CardDescription>Criar, aprovar, rejeitar, cancelar</CardDescription>
@@ -846,7 +894,7 @@ export function HRPage() {
 
       {tab === "colaboradores" && (
         <div className="grid gap-4 xl:grid-cols-2">
-          <Card>
+          <Card id="form-colaborador-novo">
             <CardHeader className="mb-3">
               <CardTitle>Novo colaborador</CardTitle>
               <CardDescription>Criar e já listar</CardDescription>
@@ -962,7 +1010,7 @@ export function HRPage() {
           </Card>
 
           <div className="space-y-3">
-            <Card>
+            <Card id="form-colaborador-detalhes">
               <CardHeader className="mb-2">
                 <CardTitle>Detalhes do colaborador</CardTitle>
                 <CardDescription>Editar dados principais e status</CardDescription>
@@ -1045,7 +1093,7 @@ export function HRPage() {
             </Card>
 
             <div className="grid gap-3 lg:grid-cols-2">
-              <Card>
+              <Card id="form-colaborador-remuneracao">
                 <CardHeader className="mb-2">
                   <CardTitle>Remuneração</CardTitle>
                   <CardDescription>Histórico + novo ajuste</CardDescription>
@@ -1101,7 +1149,7 @@ export function HRPage() {
                 )}
               </Card>
 
-              <Card>
+              <Card id="form-colaborador-beneficios">
                 <CardHeader className="mb-2">
                   <CardTitle>Benefícios</CardTitle>
                   <CardDescription>Vincular e remover</CardDescription>
@@ -1158,7 +1206,7 @@ export function HRPage() {
               </Card>
             </div>
 
-            <Card>
+            <Card id="form-colaborador-documentos">
               <CardHeader className="mb-2">
                 <CardTitle>Documentos</CardTitle>
                 <CardDescription>Upload via URL (S3/Blob)</CardDescription>
