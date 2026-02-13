@@ -49,6 +49,12 @@ const requestColors: Record<string, "default" | "success" | "warning" | "outline
   canceled: "outline",
 };
 
+const adjustmentStatusColors: Record<string, "default" | "success" | "warning" | "outline"> = {
+  pending: "warning",
+  approved: "success",
+  rejected: "outline",
+};
+
 const toArray = <T,>(v: T[] | null | undefined): T[] => (Array.isArray(v) ? v : []);
 const numOrNull = (v: FormDataEntryValue | null) => {
   const s = (v ?? "").toString().trim();
@@ -123,6 +129,8 @@ export function HRPage() {
   const [savingTimeBankAdjustment, setSavingTimeBankAdjustment] = useState(false);
   const [closingTimeBankPeriod, setClosingTimeBankPeriod] = useState(false);
   const [reopeningClosureId, setReopeningClosureId] = useState<number | null>(null);
+  const [reviewingAdjustmentId, setReviewingAdjustmentId] = useState<number | null>(null);
+  const [reviewingAdjustmentAction, setReviewingAdjustmentAction] = useState<"approve" | "reject" | null>(null);
   const [creatingEmployeeAccount, setCreatingEmployeeAccount] = useState(false);
   const [entriesFilterStart, setEntriesFilterStart] = useState(() => {
     const now = new Date();
@@ -138,6 +146,7 @@ export function HRPage() {
     return first.toISOString().slice(0, 10);
   });
   const [timeBankEndDate, setTimeBankEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [timeBankAdjustmentsStatus, setTimeBankAdjustmentsStatus] = useState<string>("");
 
   const deptMap = useMemo(() => Object.fromEntries(departments.map((d) => [d.id, d.name])), [departments]);
   const posMap = useMemo(() => Object.fromEntries(positions.map((p) => [p.id, p.title])), [positions]);
@@ -263,11 +272,16 @@ export function HRPage() {
     }
   };
 
-  const loadTimeBankAdjustments = async (startDate = timeBankStartDate, endDate = timeBankEndDate) => {
+  const loadTimeBankAdjustments = async (
+    startDate = timeBankStartDate,
+    endDate = timeBankEndDate,
+    status = timeBankAdjustmentsStatus,
+  ) => {
     try {
       const params = new URLSearchParams();
       if (startDate) params.set("start_date", startDate);
       if (endDate) params.set("end_date", endDate);
+      if (status) params.set("status", status);
       params.set("limit", "200");
       const data = await request<TimeBankAdjustment[]>(`/time-bank/adjustments?${params.toString()}`);
       setTimeBankAdjustments(toArray(data));
@@ -285,11 +299,15 @@ export function HRPage() {
     }
   };
 
-  const refreshTimeBank = async (startDate = timeBankStartDate, endDate = timeBankEndDate) => {
+  const refreshTimeBank = async (
+    startDate = timeBankStartDate,
+    endDate = timeBankEndDate,
+    status = timeBankAdjustmentsStatus,
+  ) => {
     await Promise.all([
       loadTimeBankSettings(),
       loadTimeBankSummary(startDate, endDate),
-      loadTimeBankAdjustments(startDate, endDate),
+      loadTimeBankAdjustments(startDate, endDate, status),
       loadTimeBankClosures(),
     ]);
   };
@@ -341,12 +359,39 @@ export function HRPage() {
       toast({ title: "Ajuste de banco de horas criado", variant: "success" });
       e.currentTarget.reset();
       await loadTimeBankSummary(timeBankStartDate, timeBankEndDate);
-      await loadTimeBankAdjustments(timeBankStartDate, timeBankEndDate);
+      await loadTimeBankAdjustments(timeBankStartDate, timeBankEndDate, timeBankAdjustmentsStatus);
       await loadTimeBankClosures();
     } catch (err: any) {
       toast({ title: "Erro ao criar ajuste", description: err.message, variant: "error" });
     } finally {
       setSavingTimeBankAdjustment(false);
+    }
+  };
+
+  const decideTimeBankAdjustment = async (adjustmentId: number, action: "approve" | "reject") => {
+    setReviewingAdjustmentId(adjustmentId);
+    setReviewingAdjustmentAction(action);
+    try {
+      await request(`/time-bank/adjustments/${adjustmentId}/${action}`, {
+        method: "POST",
+        body: {},
+      });
+      toast({
+        title: action === "approve" ? "Ajuste aprovado" : "Ajuste rejeitado",
+        variant: "success",
+      });
+      await loadTimeBankSummary(timeBankStartDate, timeBankEndDate);
+      await loadTimeBankAdjustments(timeBankStartDate, timeBankEndDate, timeBankAdjustmentsStatus);
+      await loadTimeBankClosures();
+    } catch (err: any) {
+      toast({
+        title: action === "approve" ? "Erro ao aprovar ajuste" : "Erro ao rejeitar ajuste",
+        description: err.message,
+        variant: "error",
+      });
+    } finally {
+      setReviewingAdjustmentId(null);
+      setReviewingAdjustmentAction(null);
     }
   };
 
@@ -1514,7 +1559,7 @@ export function HRPage() {
           <Card id="form-banco-ajustes" className="xl:col-span-2">
             <CardHeader className="mb-2">
               <CardTitle>Ajustes manuais</CardTitle>
-              <CardDescription>Corrija saldo com acrescimo ou desconto em minutos.</CardDescription>
+              <CardDescription>Ajustes entram no saldo apenas quando aprovados.</CardDescription>
             </CardHeader>
             <form className="grid grid-cols-1 gap-3 px-4 pb-4 md:grid-cols-4" onSubmit={createTimeBankAdjustment}>
               <div className="md:col-span-2">
@@ -1544,10 +1589,35 @@ export function HRPage() {
               </div>
               <div className="md:col-span-4">
                 <Button type="submit" className="w-full" disabled={savingTimeBankAdjustment}>
-                  {savingTimeBankAdjustment ? "Salvando ajuste..." : "Registrar ajuste"}
+                  {savingTimeBankAdjustment ? "Salvando ajuste..." : "Registrar ajuste (pendente)"}
                 </Button>
               </div>
             </form>
+
+            <div className="grid grid-cols-1 gap-2 px-4 pb-4 md:grid-cols-3">
+              <div>
+                <Label>Status</Label>
+                <Select
+                  value={timeBankAdjustmentsStatus}
+                  onChange={(e) => setTimeBankAdjustmentsStatus(e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  <option value="pending">Pendentes</option>
+                  <option value="approved">Aprovados</option>
+                  <option value="rejected">Rejeitados</option>
+                </Select>
+              </div>
+              <div className="md:col-span-2 flex items-end gap-2">
+                <Button
+                  type="button"
+                  className="flex-1"
+                  variant="outline"
+                  onClick={() => loadTimeBankAdjustments(timeBankStartDate, timeBankEndDate, timeBankAdjustmentsStatus)}
+                >
+                  Atualizar lista
+                </Button>
+              </div>
+            </div>
 
             <div className="overflow-auto px-4 pb-4">
               <Table>
@@ -1555,9 +1625,11 @@ export function HRPage() {
                   <TR>
                     <TH>Data</TH>
                     <TH>Colaborador</TH>
+                    <TH>Status</TH>
                     <TH>Ajuste</TH>
                     <TH>Motivo</TH>
-                    <TH>Criado em</TH>
+                    <TH>Revisao</TH>
+                    <TH />
                   </TR>
                 </THead>
                 <TBody>
@@ -1566,17 +1638,51 @@ export function HRPage() {
                       <TD>{formatDate(item.effective_date)}</TD>
                       <TD>{item.employee_name}</TD>
                       <TD>
+                        <Badge variant={adjustmentStatusColors[item.status] || "outline"}>
+                          {item.status}
+                        </Badge>
+                      </TD>
+                      <TD>
                         <span className={item.seconds_delta >= 0 ? "text-emerald-400" : "text-rose-400"}>
                           {formatSignedHours(item.seconds_delta)}
                         </span>
                       </TD>
-                      <TD className="max-w-[360px] truncate">{item.reason || "-"}</TD>
-                      <TD>{formatDateTime(item.created_at)}</TD>
+                      <TD className="max-w-[320px] truncate">
+                        {item.reason || "-"}
+                        {item.review_note ? ` · ${item.review_note}` : ""}
+                      </TD>
+                      <TD>
+                        {item.reviewed_at ? formatDateTime(item.reviewed_at) : "aguardando"}
+                      </TD>
+                      <TD>
+                        {item.status === "pending" ? (
+                          <div className="flex gap-2">
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => decideTimeBankAdjustment(item.id, "approve")}
+                              disabled={reviewingAdjustmentId === item.id}
+                            >
+                              {reviewingAdjustmentId === item.id && reviewingAdjustmentAction === "approve" ? "..." : "Aprovar"}
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="destructive"
+                              onClick={() => decideTimeBankAdjustment(item.id, "reject")}
+                              disabled={reviewingAdjustmentId === item.id}
+                            >
+                              {reviewingAdjustmentId === item.id && reviewingAdjustmentAction === "reject" ? "..." : "Rejeitar"}
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TD>
                     </TR>
                   ))}
                   {timeBankAdjustments.length === 0 && (
                     <TR>
-                      <TD colSpan={5} className="text-center text-sm text-muted-foreground">
+                      <TD colSpan={7} className="text-center text-sm text-muted-foreground">
                         Nenhum ajuste manual no periodo.
                       </TD>
                     </TR>

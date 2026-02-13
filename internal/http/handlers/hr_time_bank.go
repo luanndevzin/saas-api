@@ -18,6 +18,9 @@ const (
 	defaultTimeBankLimit        = 30
 	maxTimeBankLimit            = 200
 	maxTimeBankDailyMinutes     = 960
+	timeBankStatusPending       = "pending"
+	timeBankStatusApproved      = "approved"
+	timeBankStatusRejected      = "rejected"
 )
 
 type timeBankSettings struct {
@@ -85,16 +88,24 @@ type createTimeBankAdjustmentReq struct {
 	Reason        *string `json:"reason"`
 }
 
+type timeBankDecisionReq struct {
+	Note *string `json:"note"`
+}
+
 type TimeBankAdjustment struct {
-	ID            uint64    `db:"id" json:"id"`
-	TenantID      uint64    `db:"tenant_id" json:"tenant_id"`
-	EmployeeID    uint64    `db:"employee_id" json:"employee_id"`
-	EmployeeName  string    `db:"employee_name" json:"employee_name"`
-	EffectiveDate time.Time `db:"effective_date" json:"effective_date"`
-	SecondsDelta  int64     `db:"seconds_delta" json:"seconds_delta"`
-	Reason        *string   `db:"reason" json:"reason,omitempty"`
-	CreatedBy     *uint64   `db:"created_by" json:"created_by,omitempty"`
-	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	ID            uint64     `db:"id" json:"id"`
+	TenantID      uint64     `db:"tenant_id" json:"tenant_id"`
+	EmployeeID    uint64     `db:"employee_id" json:"employee_id"`
+	EmployeeName  string     `db:"employee_name" json:"employee_name"`
+	EffectiveDate time.Time  `db:"effective_date" json:"effective_date"`
+	SecondsDelta  int64      `db:"seconds_delta" json:"seconds_delta"`
+	Status        string     `db:"status" json:"status"`
+	Reason        *string    `db:"reason" json:"reason,omitempty"`
+	ReviewNote    *string    `db:"review_note" json:"review_note,omitempty"`
+	CreatedBy     *uint64    `db:"created_by" json:"created_by,omitempty"`
+	ReviewedBy    *uint64    `db:"reviewed_by" json:"reviewed_by,omitempty"`
+	ReviewedAt    *time.Time `db:"reviewed_at" json:"reviewed_at,omitempty"`
+	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
 }
 
 type closeTimeBankReq struct {
@@ -237,7 +248,7 @@ func (h *HRHandler) ListTimeBankAdjustments(w http.ResponseWriter, r *http.Reque
 	args := []any{tenantID, startDate, endDate}
 	query := `
 		SELECT a.id, a.tenant_id, a.employee_id, e.name AS employee_name, a.effective_date,
-		       a.seconds_delta, a.reason, a.created_by, a.created_at
+		       a.seconds_delta, a.status, a.reason, a.review_note, a.created_by, a.reviewed_by, a.reviewed_at, a.created_at
 		FROM hr_time_bank_adjustments a
 		JOIN employees e ON e.tenant_id=a.tenant_id AND e.id=a.employee_id
 		WHERE a.tenant_id=? AND a.effective_date>=? AND a.effective_date<=?
@@ -251,6 +262,15 @@ func (h *HRHandler) ListTimeBankAdjustments(w http.ResponseWriter, r *http.Reque
 		}
 		query += " AND a.employee_id=?"
 		args = append(args, employeeID)
+	}
+
+	if raw := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("status"))); raw != "" {
+		if !isValidTimeBankStatus(raw) {
+			httpError(w, "adjustment status must be pending|approved|rejected", http.StatusBadRequest)
+			return
+		}
+		query += " AND a.status=?"
+		args = append(args, raw)
 	}
 
 	query += " ORDER BY a.effective_date DESC, a.id DESC LIMIT ?"
@@ -321,9 +341,11 @@ func (h *HRHandler) CreateTimeBankAdjustment(w http.ResponseWriter, r *http.Requ
 	}
 
 	res, err := tx.Exec(`
-		INSERT INTO hr_time_bank_adjustments (tenant_id, employee_id, effective_date, seconds_delta, reason, created_by)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, tenantID, req.EmployeeID, effectiveDate, delta, reason, userID)
+		INSERT INTO hr_time_bank_adjustments (
+			tenant_id, employee_id, effective_date, seconds_delta, status, reason, review_note, created_by, reviewed_by, reviewed_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NULL, NULL)
+	`, tenantID, req.EmployeeID, effectiveDate, delta, timeBankStatusPending, reason, userID)
 	if err != nil {
 		httpError(w, "could not create time bank adjustment", http.StatusBadRequest)
 		return
@@ -333,7 +355,7 @@ func (h *HRHandler) CreateTimeBankAdjustment(w http.ResponseWriter, r *http.Requ
 	var created TimeBankAdjustment
 	if err := tx.Get(&created, `
 		SELECT a.id, a.tenant_id, a.employee_id, e.name AS employee_name, a.effective_date,
-		       a.seconds_delta, a.reason, a.created_by, a.created_at
+		       a.seconds_delta, a.status, a.reason, a.review_note, a.created_by, a.reviewed_by, a.reviewed_at, a.created_at
 		FROM hr_time_bank_adjustments a
 		JOIN employees e ON e.tenant_id=a.tenant_id AND e.id=a.employee_id
 		WHERE a.tenant_id=? AND a.id=?
@@ -349,6 +371,94 @@ func (h *HRHandler) CreateTimeBankAdjustment(w http.ResponseWriter, r *http.Requ
 	}
 
 	writeJSON(w, http.StatusCreated, created)
+}
+
+func (h *HRHandler) ApproveTimeBankAdjustment(w http.ResponseWriter, r *http.Request) {
+	h.decideTimeBankAdjustment(w, r, timeBankStatusApproved)
+}
+
+func (h *HRHandler) RejectTimeBankAdjustment(w http.ResponseWriter, r *http.Request) {
+	h.decideTimeBankAdjustment(w, r, timeBankStatusRejected)
+}
+
+func (h *HRHandler) decideTimeBankAdjustment(w http.ResponseWriter, r *http.Request, targetStatus string) {
+	tenantID := mw.GetTenantID(r.Context())
+	userID := mw.GetUserID(r.Context())
+
+	adjustmentID, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httpError(w, "invalid request id", http.StatusBadRequest)
+		return
+	}
+
+	var req timeBankDecisionReq
+	if r.ContentLength > 0 {
+		if err := decodeJSON(r, &req); err != nil {
+			httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	note := normalizeOptionalString(req.Note)
+
+	tx, err := h.DB.Beginx()
+	if err != nil {
+		httpError(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	before, err := h.getTimeBankAdjustmentByID(tx, tenantID, adjustmentID)
+	if err == sql.ErrNoRows {
+		httpError(w, "time bank adjustment not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	if before.Status != timeBankStatusPending {
+		httpError(w, "invalid status transition", http.StatusBadRequest)
+		return
+	}
+
+	closed, err := h.isDateClosedForTimeBank(tenantID, before.EffectiveDate)
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+	if closed {
+		httpError(w, "period is closed for this date", http.StatusConflict)
+		return
+	}
+
+	if _, err := tx.Exec(`
+		UPDATE hr_time_bank_adjustments
+		SET status=?, review_note=?, reviewed_by=?, reviewed_at=UTC_TIMESTAMP
+		WHERE tenant_id=? AND id=?
+	`, targetStatus, note, userID, tenantID, adjustmentID); err != nil {
+		httpError(w, "db update error", http.StatusInternalServerError)
+		return
+	}
+
+	after, err := h.getTimeBankAdjustmentByID(tx, tenantID, adjustmentID)
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	action := "approve"
+	if targetStatus == timeBankStatusRejected {
+		action = "reject"
+	}
+	_ = insertAudit(tx, r, tenantID, userID, action, "hr_time_bank_adjustments", int64(adjustmentID), before, after)
+
+	if err := tx.Commit(); err != nil {
+		httpError(w, "db commit error", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, after)
 }
 
 func (h *HRHandler) CloseTimeBankPeriod(w http.ResponseWriter, r *http.Request) {
@@ -648,9 +758,9 @@ func (h *HRHandler) buildTimeBankSummary(tenantID uint64, startDate, endDate tim
 	if err := h.DB.Select(&adjustRows, `
 		SELECT employee_id, COALESCE(SUM(seconds_delta), 0) AS adjustment_seconds
 		FROM hr_time_bank_adjustments
-		WHERE tenant_id=? AND effective_date>=? AND effective_date<=?
+		WHERE tenant_id=? AND status=? AND effective_date>=? AND effective_date<=?
 		GROUP BY employee_id
-	`, tenantID, startDate, endDate); err != nil {
+	`, tenantID, timeBankStatusApproved, startDate, endDate); err != nil {
 		return TimeBankSummaryResp{}, err
 	}
 	adjustByEmployee := make(map[uint64]int64, len(adjustRows))
@@ -771,6 +881,21 @@ func (h *HRHandler) getTimeBankClosureByID(exec sqlExecutor, tenantID uint64, id
 	return closure, nil
 }
 
+func (h *HRHandler) getTimeBankAdjustmentByID(exec sqlExecutor, tenantID, id uint64) (TimeBankAdjustment, error) {
+	var item TimeBankAdjustment
+	if err := exec.Get(&item, `
+		SELECT a.id, a.tenant_id, a.employee_id, e.name AS employee_name, a.effective_date,
+		       a.seconds_delta, a.status, a.reason, a.review_note, a.created_by, a.reviewed_by, a.reviewed_at, a.created_at
+		FROM hr_time_bank_adjustments a
+		JOIN employees e ON e.tenant_id=a.tenant_id AND e.id=a.employee_id
+		WHERE a.tenant_id=? AND a.id=?
+		LIMIT 1
+	`, tenantID, id); err != nil {
+		return TimeBankAdjustment{}, err
+	}
+	return item, nil
+}
+
 type sqlExecutor interface {
 	Get(dest any, query string, args ...any) error
 }
@@ -824,6 +949,15 @@ func parseTimeBankDelta(secondsDelta, minutesDelta *int64) (int64, error) {
 		return 0, errString("delta must be non-zero")
 	}
 	return delta, nil
+}
+
+func isValidTimeBankStatus(status string) bool {
+	switch strings.TrimSpace(strings.ToLower(status)) {
+	case timeBankStatusPending, timeBankStatusApproved, timeBankStatusRejected:
+		return true
+	default:
+		return false
+	}
 }
 
 func countWorkDays(startDate, endDate time.Time, includeSaturday bool) int64 {

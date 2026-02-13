@@ -114,6 +114,8 @@ func NewRouter(db *sqlx.DB, log zerolog.Logger, jwtSecret []byte, jwtIssuer stri
 				r.Get("/time-bank/summary", hr.GetTimeBankSummary)
 				r.Get("/time-bank/adjustments", hr.ListTimeBankAdjustments)
 				r.Post("/time-bank/adjustments", hr.CreateTimeBankAdjustment)
+				r.Post("/time-bank/adjustments/{id}/approve", hr.ApproveTimeBankAdjustment)
+				r.Post("/time-bank/adjustments/{id}/reject", hr.RejectTimeBankAdjustment)
 				r.Get("/time-bank/closures", hr.ListTimeBankClosures)
 				r.Post("/time-bank/closures/close", hr.CloseTimeBankPeriod)
 				r.Post("/time-bank/closures/{id}/reopen", hr.ReopenTimeBankClosure)

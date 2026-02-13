@@ -237,8 +237,12 @@ export interface TimeBankAdjustment {
   employee_name: string;
   effective_date: string;
   seconds_delta: number;
+  status: "pending" | "approved" | "rejected" | string;
   reason?: string | null;
+  review_note?: string | null;
   created_by?: number | null;
+  reviewed_by?: number | null;
+  reviewed_at?: string | null;
   created_at: string;
 }
 
@@ -402,6 +406,8 @@ function translateApiMessage(status: number, data: any) {
     [/period_end must be yyyy-mm-dd/i, "period_end deve estar em YYYY-MM-DD."],
     [/period_end must be >= period_start/i, "period_end deve ser maior ou igual a period_start."],
     [/another closed period overlaps selected range/i, "Ja existe fechamento sobrepondo esse periodo."],
+    [/adjustment status must be pending\\|approved\\|rejected/i, "Status do ajuste deve ser pending, approved ou rejected."],
+    [/time bank adjustment not found/i, "Ajuste de banco de horas nao encontrado."],
     [/time bank closure not found/i, "Fechamento de banco de horas nao encontrado."],
     [/colaborador role must be provisioned by hr/i, "Role colaborador so pode ser provisionada pelo RH."],
     [/user already has elevated role/i, "Este usuario ja possui perfil administrativo neste tenant."],

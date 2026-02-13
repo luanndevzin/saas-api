@@ -1701,6 +1701,10 @@ func localizeHRMessage(msg string) string {
 		return "fechamento de banco de horas nao encontrado"
 	case "could not reopen time bank period":
 		return "nao foi possivel reabrir o fechamento do banco de horas"
+	case "adjustment status must be pending|approved|rejected":
+		return "status do ajuste deve ser pending, approved ou rejected"
+	case "time bank adjustment not found":
+		return "ajuste de banco de horas nao encontrado"
 	default:
 		return msg
 	}
