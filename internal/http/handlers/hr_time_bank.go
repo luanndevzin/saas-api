@@ -1678,6 +1678,7 @@ func renderTimeCardEmployeePages(
 
 		if page == totalPages-1 {
 			drawTimeCardTotalsRow(pdf, employee)
+			drawTimeCardSignatureArea(pdf, employee.EmployeeName)
 		}
 	}
 }
@@ -1802,6 +1803,32 @@ func drawTimeCardTotalsRow(pdf *fpdf.Fpdf, employee timeBankCardEmployee) {
 	pdf.CellFormat(timeCardColumns[8].Width, timeCardTableRowH+0.3, formatDurationClock(employee.AdjustmentSeconds, true), "1", 0, timeCardColumns[8].Align, true, 0, "")
 	pdf.CellFormat(timeCardColumns[9].Width, timeCardTableRowH+0.3, formatDurationClock(employee.BalanceSeconds, true), "1", 0, timeCardColumns[9].Align, true, 0, "")
 	pdf.Ln(-1)
+}
+
+func drawTimeCardSignatureArea(pdf *fpdf.Fpdf, employeeName string) {
+	pdf.Ln(6)
+	pdf.SetFont(timeCardFontName, "", 8.5)
+	pdf.CellFormat(0, 5, "Declaro que as marcacoes acima conferem com a jornada realizada.", "", 1, "L", false, 0, "")
+
+	signY := pdf.GetY() + 12
+	signStartX := 20.0
+	signEndX := 122.0
+	dateStartX := 138.0
+	dateEndX := 185.0
+
+	pdf.SetDrawColor(80, 92, 112)
+	pdf.Line(signStartX, signY, signEndX, signY)
+	pdf.Line(dateStartX, signY, dateEndX, signY)
+
+	pdf.SetY(signY + 1)
+	pdf.SetX(signStartX)
+	pdf.CellFormat(signEndX-signStartX, 4, "Assinatura do colaborador", "", 0, "C", false, 0, "")
+
+	pdf.SetX(dateStartX)
+	pdf.CellFormat(dateEndX-dateStartX, 4, "Data", "", 1, "C", false, 0, "")
+
+	pdf.SetX(signStartX)
+	pdf.CellFormat(signEndX-signStartX, 4, fmt.Sprintf("Nome: %s", defaultOrDash(employeeName)), "", 1, "L", false, 0, "")
 }
 
 func drawTimeCardEmptyRow(pdf *fpdf.Fpdf, message string) {
