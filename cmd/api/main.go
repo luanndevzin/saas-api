@@ -12,6 +12,7 @@ import (
 	"saas-api/internal/config"
 	"saas-api/internal/db"
 	httpserver "saas-api/internal/http"
+	"saas-api/internal/http/handlers"
 )
 
 func main() {
@@ -39,6 +40,20 @@ func main() {
 	}
 
 	router := httpserver.NewRouter(database, log.Logger, []byte(cfg.JWTSecret), cfg.JWTIssuer, cfg.JWTTTLMinutes)
+
+	if cfg.ClockifyAutoSyncEnabled {
+		log.Info().
+			Int("hour_utc", cfg.ClockifyAutoSyncHourUTC).
+			Int("lookback_days", cfg.ClockifyAutoSyncLookbackDays).
+			Msg("clockify auto sync scheduler enabled")
+
+		go handlers.StartClockifyAutoSyncScheduler(
+			context.Background(),
+			&handlers.HRHandler{DB: database},
+			cfg.ClockifyAutoSyncHourUTC,
+			cfg.ClockifyAutoSyncLookbackDays,
+		)
+	}
 
 	log.Info().Str("addr", cfg.HTTPAddr).Msg("api listening")
 	if err := http.ListenAndServe(cfg.HTTPAddr, router); err != nil {

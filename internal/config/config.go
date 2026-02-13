@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/caarlos0/env/v11"
@@ -21,6 +22,10 @@ type Config struct {
 	JWTTTLMinutes int    `env:"JWT_TTL_MINUTES" envDefault:"60"`
 
 	RunMigrations bool `env:"RUN_MIGRATIONS" envDefault:"true"`
+
+	ClockifyAutoSyncEnabled      bool `env:"CLOCKIFY_AUTO_SYNC_ENABLED" envDefault:"false"`
+	ClockifyAutoSyncHourUTC      int  `env:"CLOCKIFY_AUTO_SYNC_HOUR_UTC" envDefault:"3"`
+	ClockifyAutoSyncLookbackDays int  `env:"CLOCKIFY_AUTO_SYNC_LOOKBACK_DAYS" envDefault:"2"`
 }
 
 func Load() (Config, error) {
@@ -59,6 +64,13 @@ func Load() (Config, error) {
 		if v := os.Getenv("MYSQLDATABASE"); v != "" {
 			cfg.DBName = v
 		}
+	}
+
+	if cfg.ClockifyAutoSyncHourUTC < 0 || cfg.ClockifyAutoSyncHourUTC > 23 {
+		return cfg, fmt.Errorf("CLOCKIFY_AUTO_SYNC_HOUR_UTC must be between 0 and 23")
+	}
+	if cfg.ClockifyAutoSyncLookbackDays < 1 || cfg.ClockifyAutoSyncLookbackDays > 30 {
+		return cfg, fmt.Errorf("CLOCKIFY_AUTO_SYNC_LOOKBACK_DAYS must be between 1 and 30")
 	}
 
 	return cfg, nil

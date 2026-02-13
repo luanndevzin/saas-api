@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/rs/zerolog/log"
 
 	mw "saas-api/internal/http/middleware"
 )
@@ -64,6 +64,25 @@ type clockifySyncResp struct {
 	EntriesUpserted  int       `json:"entries_upserted"`
 	RunningEntries   int       `json:"running_entries"`
 	SyncedAt         time.Time `json:"synced_at"`
+}
+
+type clockifyTenantConnection struct {
+	TenantID    uint64 `db:"tenant_id"`
+	WorkspaceID string `db:"workspace_id"`
+	APIKey      string `db:"api_key"`
+}
+
+type syncInternalError struct {
+	Message string
+	Err     error
+}
+
+func (e *syncInternalError) Error() string {
+	return e.Message
+}
+
+func (e *syncInternalError) Unwrap() error {
+	return e.Err
 }
 
 type HRTimeEntry struct {
@@ -361,203 +380,29 @@ func (h *HRHandler) SyncClockifyEntries(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	client := newClockifyClient(conn.APIKey)
-	users, err := client.ListUsers(r.Context(), conn.WorkspaceID)
+	summary, err := h.syncClockifyTenant(r.Context(), tenantID, conn, startDate, endDate)
 	if err != nil {
+		var internalErr *syncInternalError
+		if errors.As(err, &internalErr) {
+			httpError(w, internalErr.Message, http.StatusInternalServerError)
+			return
+		}
 		status := mapClockifyError(err)
 		httpError(w, status.Message, status.HTTPStatus)
 		return
 	}
 
-	employees := make([]employeeIdentity, 0, 256)
-	if err := h.DB.Select(&employees, `
-		SELECT id, email
-		FROM employees
-		WHERE tenant_id=? AND status <> 'terminated'
-	`, tenantID); err != nil {
-		httpError(w, "db read error", http.StatusInternalServerError)
-		return
-	}
-
-	links := make([]clockifyUserLink, 0, 256)
-	if err := h.DB.Select(&links, `
-		SELECT employee_id, clockify_user_id
-		FROM hr_clockify_user_links
-		WHERE tenant_id=?
-	`, tenantID); err != nil {
-		httpError(w, "db read error", http.StatusInternalServerError)
-		return
-	}
-
-	employeeByEmail := make(map[string]uint64, len(employees))
-	for _, emp := range employees {
-		if !emp.Email.Valid {
-			continue
-		}
-		email := normalizeEmail(emp.Email.String)
-		if email != "" {
-			employeeByEmail[email] = emp.ID
-		}
-	}
-
-	linkedByClockifyUser := make(map[string]uint64, len(links))
-	for _, link := range links {
-		linkedByClockifyUser[link.ClockifyUserID] = link.EmployeeID
-	}
-
-	now := time.Now().UTC()
-	mappedUserIDs := make([]string, 0, len(users))
-	mappedByUser := make(map[string]uint64, len(users))
-	mappedEmployees := make(map[uint64]struct{})
-
-	for _, user := range users {
-		clockifyUserID := strings.TrimSpace(user.ID)
-		if clockifyUserID == "" {
-			continue
-		}
-		employeeID, ok := linkedByClockifyUser[clockifyUserID]
-		if !ok {
-			email := normalizeEmail(user.Email)
-			if email == "" {
-				continue
-			}
-			var byEmail bool
-			employeeID, byEmail = employeeByEmail[email]
-			if !byEmail {
-				continue
-			}
-		}
-
-		_, err := h.DB.Exec(`
-			INSERT INTO hr_clockify_user_links (
-				tenant_id, employee_id, clockify_user_id, clockify_user_name, clockify_user_email, last_synced_at
-			) VALUES (?, ?, ?, ?, ?, ?)
-			ON DUPLICATE KEY UPDATE
-				employee_id=VALUES(employee_id),
-				clockify_user_name=VALUES(clockify_user_name),
-				clockify_user_email=VALUES(clockify_user_email),
-				last_synced_at=VALUES(last_synced_at),
-				updated_at=CURRENT_TIMESTAMP
-		`, tenantID, employeeID, clockifyUserID, nullableTrimmed(user.Name), nullableTrimmed(user.Email), now)
-		if err != nil {
-			httpError(w, "db update error", http.StatusInternalServerError)
-			return
-		}
-
-		mappedUserIDs = append(mappedUserIDs, clockifyUserID)
-		mappedByUser[clockifyUserID] = employeeID
-		mappedEmployees[employeeID] = struct{}{}
-	}
-
-	apiStart := startDate
-	apiEnd := endDate.Add(24 * time.Hour)
-
-	entriesProcessed := 0
-	entriesUpserted := 0
-	runningEntries := 0
-
-	for _, clockifyUserID := range mappedUserIDs {
-		employeeID := mappedByUser[clockifyUserID]
-		entries, err := client.ListTimeEntries(r.Context(), conn.WorkspaceID, clockifyUserID, apiStart, apiEnd)
-		if err != nil {
-			status := mapClockifyError(err)
-			httpError(w, status.Message, status.HTTPStatus)
-			return
-		}
-
-		for _, entry := range entries {
-			entriesProcessed++
-			if strings.TrimSpace(entry.ID) == "" {
-				continue
-			}
-
-			startAt, err := parseClockifyTimestamp(entry.TimeInterval.Start)
-			if err != nil {
-				continue
-			}
-
-			endAt, err := parseClockifyOptionalTimestamp(entry.TimeInterval.End)
-			if err != nil {
-				continue
-			}
-			isRunning := endAt == nil
-			if isRunning {
-				runningEntries++
-			}
-
-			durationSeconds := calcDurationSeconds(startAt, endAt, entry.TimeInterval.Duration, now)
-			rawJSON, _ := json.Marshal(entry)
-			tagJSON, _ := json.Marshal(entry.TagIDs)
-
-			_, err = h.DB.Exec(`
-				INSERT INTO hr_time_entries (
-					tenant_id, employee_id, source, external_entry_id, clockify_user_id, workspace_id,
-					project_id, task_id, description, tag_ids_json, start_at, end_at, duration_seconds,
-					is_running, billable, raw_json, synced_at
-				) VALUES (
-					?, ?, 'clockify', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-				)
-				ON DUPLICATE KEY UPDATE
-					employee_id=VALUES(employee_id),
-					project_id=VALUES(project_id),
-					task_id=VALUES(task_id),
-					description=VALUES(description),
-					tag_ids_json=VALUES(tag_ids_json),
-					start_at=VALUES(start_at),
-					end_at=VALUES(end_at),
-					duration_seconds=VALUES(duration_seconds),
-					is_running=VALUES(is_running),
-					billable=VALUES(billable),
-					raw_json=VALUES(raw_json),
-					synced_at=VALUES(synced_at),
-					updated_at=CURRENT_TIMESTAMP
-			`,
-				tenantID,
-				employeeID,
-				entry.ID,
-				entry.UserID,
-				conn.WorkspaceID,
-				nullableTrimmed(entry.ProjectID),
-				nullableTrimmed(entry.TaskID),
-				nullableTrimmed(entry.Description),
-				tagJSON,
-				startAt,
-				endAt,
-				durationSeconds,
-				isRunning,
-				entry.Billable,
-				rawJSON,
-				now,
-			)
-			if err != nil {
-				httpError(w, "db update error", http.StatusInternalServerError)
-				return
-			}
-			entriesUpserted++
-		}
-	}
-
 	_ = insertAudit(h.DB, r, tenantID, userID, "sync", "hr_time_entries", 0, nil, map[string]any{
 		"provider":          "clockify",
-		"range_start":       startDate.Format("2006-01-02"),
-		"range_end":         endDate.Format("2006-01-02"),
-		"users_found":       len(users),
-		"users_mapped":      len(mappedUserIDs),
-		"entries_processed": entriesProcessed,
-		"entries_upserted":  entriesUpserted,
+		"range_start":       summary.RangeStart,
+		"range_end":         summary.RangeEnd,
+		"users_found":       summary.UsersFound,
+		"users_mapped":      summary.EmployeesMapped,
+		"entries_processed": summary.EntriesProcessed,
+		"entries_upserted":  summary.EntriesUpserted,
 	})
 
-	writeJSON(w, http.StatusOK, clockifySyncResp{
-		RangeStart:       startDate.Format("2006-01-02"),
-		RangeEnd:         endDate.Format("2006-01-02"),
-		EmployeesTotal:   len(employees),
-		UsersFound:       len(users),
-		EmployeesMapped:  len(mappedEmployees),
-		EntriesProcessed: entriesProcessed,
-		EntriesUpserted:  entriesUpserted,
-		RunningEntries:   runningEntries,
-		SyncedAt:         now,
-	})
+	writeJSON(w, http.StatusOK, summary)
 }
 
 func (h *HRHandler) ListTimeEntries(w http.ResponseWriter, r *http.Request) {
@@ -637,6 +482,298 @@ func (h *HRHandler) ListTimeEntries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, items)
+}
+
+func (h *HRHandler) RunClockifyAutoSync(ctx context.Context, lookbackDays int) {
+	if lookbackDays < 1 {
+		lookbackDays = 1
+	}
+
+	connections := make([]clockifyTenantConnection, 0, 64)
+	if err := h.DB.Select(&connections, `
+		SELECT tenant_id, workspace_id, api_key
+		FROM hr_clockify_connections
+		ORDER BY tenant_id ASC
+	`); err != nil {
+		log.Error().Err(err).Msg("clockify auto sync: could not load configured tenants")
+		return
+	}
+
+	if len(connections) == 0 {
+		log.Info().Msg("clockify auto sync: no configured tenants")
+		return
+	}
+
+	now := time.Now().UTC()
+	endDate := dateOnly(now)
+	startDate := endDate.AddDate(0, 0, -lookbackDays)
+	successCount := 0
+
+	for _, item := range connections {
+		summary, err := h.syncClockifyTenant(ctx, item.TenantID, clockifyConnection{
+			WorkspaceID: item.WorkspaceID,
+			APIKey:      item.APIKey,
+		}, startDate, endDate)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Uint64("tenant_id", item.TenantID).
+				Msg("clockify auto sync: tenant sync failed")
+			continue
+		}
+
+		successCount++
+		log.Info().
+			Uint64("tenant_id", item.TenantID).
+			Int("entries_upserted", summary.EntriesUpserted).
+			Int("entries_processed", summary.EntriesProcessed).
+			Msg("clockify auto sync: tenant synchronized")
+
+		_ = h.insertSystemSyncAudit(item.TenantID, summary, "sync_auto")
+	}
+
+	log.Info().
+		Int("tenants_total", len(connections)).
+		Int("tenants_success", successCount).
+		Msg("clockify auto sync finished")
+}
+
+func StartClockifyAutoSyncScheduler(ctx context.Context, h *HRHandler, hourUTC, lookbackDays int) {
+	if hourUTC < 0 || hourUTC > 23 {
+		hourUTC = 3
+	}
+	if lookbackDays < 1 {
+		lookbackDays = 1
+	}
+
+	h.RunClockifyAutoSync(ctx, lookbackDays)
+
+	for {
+		nextRun := nextRunAtUTCHour(time.Now().UTC(), hourUTC)
+		wait := time.Until(nextRun)
+		timer := time.NewTimer(wait)
+		log.Info().
+			Time("next_run_utc", nextRun).
+			Msg("clockify auto sync scheduler waiting")
+
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			log.Info().Msg("clockify auto sync scheduler stopped")
+			return
+		case <-timer.C:
+			h.RunClockifyAutoSync(ctx, lookbackDays)
+		}
+	}
+}
+
+func nextRunAtUTCHour(now time.Time, hourUTC int) time.Time {
+	run := time.Date(now.Year(), now.Month(), now.Day(), hourUTC, 0, 0, 0, time.UTC)
+	if !run.After(now) {
+		run = run.Add(24 * time.Hour)
+	}
+	return run
+}
+
+func (h *HRHandler) insertSystemSyncAudit(tenantID uint64, summary clockifySyncResp, action string) error {
+	after := map[string]any{
+		"provider":          "clockify",
+		"range_start":       summary.RangeStart,
+		"range_end":         summary.RangeEnd,
+		"users_found":       summary.UsersFound,
+		"users_mapped":      summary.EmployeesMapped,
+		"entries_processed": summary.EntriesProcessed,
+		"entries_upserted":  summary.EntriesUpserted,
+	}
+
+	_, err := h.DB.Exec(`
+		INSERT INTO audit_logs (tenant_id, user_id, action, entity, entity_id, before_json, after_json, ip, user_agent)
+		VALUES (?, NULL, ?, 'hr_time_entries', '0', NULL, ?, 'system', 'clockify-auto-sync')
+	`, tenantID, action, nullableJSON(after))
+	return err
+}
+
+func (h *HRHandler) syncClockifyTenant(ctx context.Context, tenantID uint64, conn clockifyConnection, startDate, endDate time.Time) (clockifySyncResp, error) {
+	client := newClockifyClient(conn.APIKey)
+	users, err := client.ListUsers(ctx, conn.WorkspaceID)
+	if err != nil {
+		return clockifySyncResp{}, err
+	}
+
+	employees := make([]employeeIdentity, 0, 256)
+	if err := h.DB.Select(&employees, `
+		SELECT id, email
+		FROM employees
+		WHERE tenant_id=? AND status <> 'terminated'
+	`, tenantID); err != nil {
+		return clockifySyncResp{}, &syncInternalError{Message: "db read error", Err: err}
+	}
+
+	links := make([]clockifyUserLink, 0, 256)
+	if err := h.DB.Select(&links, `
+		SELECT employee_id, clockify_user_id
+		FROM hr_clockify_user_links
+		WHERE tenant_id=?
+	`, tenantID); err != nil {
+		return clockifySyncResp{}, &syncInternalError{Message: "db read error", Err: err}
+	}
+
+	employeeByEmail := make(map[string]uint64, len(employees))
+	for _, emp := range employees {
+		if !emp.Email.Valid {
+			continue
+		}
+		email := normalizeEmail(emp.Email.String)
+		if email != "" {
+			employeeByEmail[email] = emp.ID
+		}
+	}
+
+	linkedByClockifyUser := make(map[string]uint64, len(links))
+	for _, link := range links {
+		linkedByClockifyUser[link.ClockifyUserID] = link.EmployeeID
+	}
+
+	now := time.Now().UTC()
+	mappedUserIDs := make([]string, 0, len(users))
+	mappedByUser := make(map[string]uint64, len(users))
+	mappedEmployees := make(map[uint64]struct{})
+
+	for _, user := range users {
+		clockifyUserID := strings.TrimSpace(user.ID)
+		if clockifyUserID == "" {
+			continue
+		}
+		employeeID, ok := linkedByClockifyUser[clockifyUserID]
+		if !ok {
+			email := normalizeEmail(user.Email)
+			if email == "" {
+				continue
+			}
+			var byEmail bool
+			employeeID, byEmail = employeeByEmail[email]
+			if !byEmail {
+				continue
+			}
+		}
+
+		_, err := h.DB.Exec(`
+			INSERT INTO hr_clockify_user_links (
+				tenant_id, employee_id, clockify_user_id, clockify_user_name, clockify_user_email, last_synced_at
+			) VALUES (?, ?, ?, ?, ?, ?)
+			ON DUPLICATE KEY UPDATE
+				employee_id=VALUES(employee_id),
+				clockify_user_name=VALUES(clockify_user_name),
+				clockify_user_email=VALUES(clockify_user_email),
+				last_synced_at=VALUES(last_synced_at),
+				updated_at=CURRENT_TIMESTAMP
+		`, tenantID, employeeID, clockifyUserID, nullableTrimmed(user.Name), nullableTrimmed(user.Email), now)
+		if err != nil {
+			return clockifySyncResp{}, &syncInternalError{Message: "db update error", Err: err}
+		}
+
+		mappedUserIDs = append(mappedUserIDs, clockifyUserID)
+		mappedByUser[clockifyUserID] = employeeID
+		mappedEmployees[employeeID] = struct{}{}
+	}
+
+	apiStart := startDate
+	apiEnd := endDate.Add(24 * time.Hour)
+	entriesProcessed := 0
+	entriesUpserted := 0
+	runningEntries := 0
+
+	for _, clockifyUserID := range mappedUserIDs {
+		employeeID := mappedByUser[clockifyUserID]
+		entries, err := client.ListTimeEntries(ctx, conn.WorkspaceID, clockifyUserID, apiStart, apiEnd)
+		if err != nil {
+			return clockifySyncResp{}, err
+		}
+
+		for _, entry := range entries {
+			entriesProcessed++
+			if strings.TrimSpace(entry.ID) == "" {
+				continue
+			}
+
+			startAt, err := parseClockifyTimestamp(entry.TimeInterval.Start)
+			if err != nil {
+				continue
+			}
+
+			endAt, err := parseClockifyOptionalTimestamp(entry.TimeInterval.End)
+			if err != nil {
+				continue
+			}
+			isRunning := endAt == nil
+			if isRunning {
+				runningEntries++
+			}
+
+			durationSeconds := calcDurationSeconds(startAt, endAt, entry.TimeInterval.Duration, now)
+			rawJSON, _ := json.Marshal(entry)
+			tagJSON, _ := json.Marshal(entry.TagIDs)
+
+			_, err = h.DB.Exec(`
+				INSERT INTO hr_time_entries (
+					tenant_id, employee_id, source, external_entry_id, clockify_user_id, workspace_id,
+					project_id, task_id, description, tag_ids_json, start_at, end_at, duration_seconds,
+					is_running, billable, raw_json, synced_at
+				) VALUES (
+					?, ?, 'clockify', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+				)
+				ON DUPLICATE KEY UPDATE
+					employee_id=VALUES(employee_id),
+					project_id=VALUES(project_id),
+					task_id=VALUES(task_id),
+					description=VALUES(description),
+					tag_ids_json=VALUES(tag_ids_json),
+					start_at=VALUES(start_at),
+					end_at=VALUES(end_at),
+					duration_seconds=VALUES(duration_seconds),
+					is_running=VALUES(is_running),
+					billable=VALUES(billable),
+					raw_json=VALUES(raw_json),
+					synced_at=VALUES(synced_at),
+					updated_at=CURRENT_TIMESTAMP
+			`,
+				tenantID,
+				employeeID,
+				entry.ID,
+				entry.UserID,
+				conn.WorkspaceID,
+				nullableTrimmed(entry.ProjectID),
+				nullableTrimmed(entry.TaskID),
+				nullableTrimmed(entry.Description),
+				tagJSON,
+				startAt,
+				endAt,
+				durationSeconds,
+				isRunning,
+				entry.Billable,
+				rawJSON,
+				now,
+			)
+			if err != nil {
+				return clockifySyncResp{}, &syncInternalError{Message: "db update error", Err: err}
+			}
+			entriesUpserted++
+		}
+	}
+
+	return clockifySyncResp{
+		RangeStart:       startDate.Format("2006-01-02"),
+		RangeEnd:         endDate.Format("2006-01-02"),
+		EmployeesTotal:   len(employees),
+		UsersFound:       len(users),
+		EmployeesMapped:  len(mappedEmployees),
+		EntriesProcessed: entriesProcessed,
+		EntriesUpserted:  entriesUpserted,
+		RunningEntries:   runningEntries,
+		SyncedAt:         now,
+	}, nil
 }
 
 func (h *HRHandler) getClockifyConnection(tenantID uint64) (clockifyConnection, bool, error) {
@@ -812,5 +949,3 @@ func mapClockifyError(err error) mappedClockifyErr {
 		Message:    "clockify connection failed",
 	}
 }
-
-var _ sqlx.Ext = (*sqlx.DB)(nil)
