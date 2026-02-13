@@ -169,6 +169,8 @@ export function Shell({ children }: { children: ReactNode }) {
     navigate("/dashboard");
   };
 
+  const canCheckApi = me?.role === "owner";
+
   const handleLogout = () => {
     close();
     logout();
@@ -291,7 +293,11 @@ export function Shell({ children }: { children: ReactNode }) {
             <Text size="xs" truncate mb="sm">{baseUrl}</Text>
             <Group grow>
               <Button size="xs" onClick={goPrimaryAction}>Abrir modulo</Button>
-              <Button size="xs" variant="outline" onClick={handleHealth} loading={checking}>Check</Button>
+              {canCheckApi && (
+                <Button size="xs" variant="outline" onClick={handleHealth} loading={checking}>
+                  Check
+                </Button>
+              )}
             </Group>
           </Card>
 

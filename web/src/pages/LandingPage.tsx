@@ -63,8 +63,8 @@ export function LandingPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button asChild variant="ghost" size="sm"><Link to="/login">Entrar</Link></Button>
-              <Button asChild size="sm"><Link to="/register">Começar grátis</Link></Button>
+              <Button variant="ghost" size="sm" component={Link} to="/login">Entrar</Button>
+              <Button size="sm" component={Link} to="/register">Começar grátis</Button>
             </div>
           </header>
 
@@ -76,9 +76,11 @@ export function LandingPage() {
                 Entregue payables, receivables, centros de custo, colaboradores e auditoria em uma experiência pronta, sem telas técnicas expostas ao cliente final.
               </p>
               <div className="flex flex-wrap gap-3">
-                <Button asChild size="lg"><Link to="/register">Experimentar</Link></Button>
-                <Button asChild size="lg" variant="outline"><Link to="/login">Já sou cliente</Link></Button>
-                <Button asChild size="lg" variant="ghost"><Link to="mailto:vendas@saas.com" className="flex items-center gap-2">Falar com vendas <ArrowRight className="h-4 w-4" /></Link></Button>
+                <Button size="lg" component={Link} to="/register">Experimentar</Button>
+                <Button size="lg" variant="outline" component={Link} to="/login">Já sou cliente</Button>
+                <Button size="lg" variant="ghost" component={Link} to="mailto:vendas@saas.com">
+                  <span className="flex items-center gap-2">Falar com vendas <ArrowRight className="h-4 w-4" /></span>
+                </Button>
               </div>
               <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
                 <span className="flex items-center gap-2 rounded-full border border-border/70 px-3 py-1"><Shield className="h-4 w-4 text-primary" /> Segurança e roles</span>
@@ -149,8 +151,8 @@ export function LandingPage() {
                   <ul className="mt-3 space-y-1 text-xs text-muted-foreground list-disc list-inside">
                     {p.perks.map((perk) => <li key={perk}>{perk}</li>)}
                   </ul>
-                  <Button asChild size="sm" className="mt-4 w-full" variant={p.highlight ? "default" : "outline"}>
-                    <Link to={p.href}>{p.cta}</Link>
+                  <Button size="sm" className="mt-4 w-full" variant={p.highlight ? "default" : "outline"} component={Link} to={p.href}>
+                    {p.cta}
                   </Button>
                 </Card>
               ))}

@@ -1,22 +1,12 @@
 import * as React from "react";
-import { cn } from "../../lib/utils";
+import { Textarea as MantineTextarea } from "@mantine/core";
 
-export type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>;
+export type TextareaProps = React.ComponentPropsWithoutRef<typeof MantineTextarea>;
 
-const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, ...props }, ref) => {
-    return (
-      <textarea
-        className={cn(
-          "flex min-h-[80px] w-full rounded-lg border border-input bg-background/40 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-          className,
-        )}
-        ref={ref}
-        {...props}
-      />
-    );
-  },
-);
+const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>((props, ref) => {
+  const { className, ...rest } = props;
+  return <MantineTextarea ref={ref} radius="md" size="sm" className={className} {...rest} />;
+});
 Textarea.displayName = "Textarea";
 
 export { Textarea };

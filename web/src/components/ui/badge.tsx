@@ -1,26 +1,37 @@
-﻿import { cn } from "../../lib/utils";
-import * as React from "react";
+import { Badge as MantineBadge, BadgeProps as MantineBadgeProps } from "@mantine/core";
 
-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: "default" | "outline" | "success" | "warning" | "ghost";
+type BadgeVariant = "default" | "outline" | "success" | "warning" | "ghost";
+
+export interface BadgeProps extends Omit<MantineBadgeProps, "variant" | "color"> {
+  variant?: BadgeVariant;
 }
 
-export function Badge({ className, variant = "default", ...props }: BadgeProps) {
+function mapBadge(variant: BadgeVariant = "default") {
+  switch (variant) {
+    case "outline":
+      return { variant: "outline" as const, color: "gray" as const };
+    case "success":
+      return { variant: "light" as const, color: "teal" as const };
+    case "warning":
+      return { variant: "light" as const, color: "yellow" as const };
+    case "ghost":
+      return { variant: "transparent" as const, color: "gray" as const };
+    default:
+      return { variant: "light" as const, color: "blue" as const };
+  }
+}
+
+export function Badge({ variant = "default", ...props }: BadgeProps) {
+  const mapped = mapBadge(variant);
   return (
-    <div
-      className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-tight",
-        variant === "default" && "bg-secondary text-secondary-foreground border-secondary/60",
-        variant === "outline" && "border-border text-foreground",
-        variant === "success" && "bg-emerald-500/15 text-emerald-200 border-emerald-500/50",
-        variant === "warning" && "bg-amber-500/15 text-amber-200 border-amber-500/60",
-        variant === "ghost" && "border-transparent text-muted-foreground",
-        className
-      )}
+    <MantineBadge
+      radius="xl"
+      size="sm"
+      tt="uppercase"
+      fw={700}
+      variant={mapped.variant}
+      color={mapped.color}
       {...props}
     />
   );
 }
-
-
-

@@ -1,21 +1,14 @@
 import * as React from "react";
-import { cn } from "../../lib/utils";
+import { NativeSelect } from "@mantine/core";
 
-export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement>;
+export type SelectProps = React.ComponentPropsWithoutRef<typeof NativeSelect>;
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>((props, ref) => {
   const { className, children, ...rest } = props;
   return (
-    <select
-      ref={ref}
-      className={cn(
-        "h-10 w-full rounded-lg border border-input bg-background/40 px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-        className,
-      )}
-      {...rest}
-    >
+    <NativeSelect ref={ref} radius="md" size="sm" className={className} {...rest}>
       {children}
-    </select>
+    </NativeSelect>
   );
 });
 Select.displayName = "Select";

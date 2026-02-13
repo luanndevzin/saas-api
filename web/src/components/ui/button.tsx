@@ -1,52 +1,59 @@
-import * as React from "react";
-import { Slot } from "@radix-ui/react-slot";
-import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "../../lib/utils";
+import { Button as MantineButton, ButtonProps as MantineButtonProps } from "@mantine/core";
 
-const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-60 ring-offset-background",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground shadow hover:bg-primary/90 hover:shadow-lg",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "text-foreground hover:bg-muted/70",
-        outline: "border border-border bg-background/40 hover:bg-muted/65",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/85",
-      },
-      size: {
-        xs: "h-8 px-2.5 text-xs",
-        sm: "h-9 px-3",
-        md: "h-10 px-4",
-        lg: "h-11 px-5 text-base",
-        icon: "h-10 w-10",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "md",
-    },
-  }
-);
+type ButtonVariant = "default" | "secondary" | "ghost" | "outline" | "destructive";
+type ButtonSize = "xs" | "sm" | "md" | "lg" | "icon";
 
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
-  asChild?: boolean;
+export interface ButtonProps extends Omit<MantineButtonProps, "variant" | "size" | "color"> {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
 }
 
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : "button";
-    return (
-      <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
-        ref={ref as any}
-        {...props}
-      />
-    );
+function resolveVariant(variant: ButtonVariant = "default") {
+  switch (variant) {
+    case "secondary":
+      return { variant: "light" as const, color: "gray" as const };
+    case "ghost":
+      return { variant: "subtle" as const, color: "gray" as const };
+    case "outline":
+      return { variant: "outline" as const, color: "gray" as const };
+    case "destructive":
+      return { variant: "filled" as const, color: "red" as const };
+    default:
+      return { variant: "filled" as const, color: "cyan" as const };
   }
-);
-Button.displayName = "Button";
+}
 
-export { Button, buttonVariants };
+function resolveSize(size: ButtonSize = "md") {
+  switch (size) {
+    case "xs":
+      return "xs" as const;
+    case "sm":
+      return "sm" as const;
+    case "lg":
+      return "lg" as const;
+    default:
+      return "md" as const;
+  }
+}
+
+export function Button({ variant = "default", size = "md", style, ...props }: ButtonProps) {
+  const mapped = resolveVariant(variant);
+  const mappedSize = resolveSize(size);
+
+  return (
+    <MantineButton
+      radius="md"
+      variant={mapped.variant}
+      color={mapped.color}
+      size={mappedSize}
+      style={
+        size === "icon"
+          ? { width: 40, height: 40, padding: 0, ...(style || {}) }
+          : style
+      }
+      {...props}
+    />
+  );
+}
+
+export const buttonVariants = () => "";
