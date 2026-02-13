@@ -1705,6 +1705,12 @@ func localizeHRMessage(msg string) string {
 		return "status do ajuste deve ser pending, approved ou rejected"
 	case "time bank adjustment not found":
 		return "ajuste de banco de horas nao encontrado"
+	case "employee not found in closure":
+		return "colaborador nao encontrado neste fechamento"
+	case "allow_closed_period only for hr":
+		return "somente o RH pode sincronizar ignorando periodo fechado"
+	case "there are pending time bank adjustments in selected period":
+		return "existem ajustes pendentes de aprovacao no periodo selecionado"
 	default:
 		return msg
 	}

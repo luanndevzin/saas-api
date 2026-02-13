@@ -57,20 +57,22 @@ type clockifyConfigResp struct {
 }
 
 type syncClockifyReq struct {
-	StartDate string `json:"start_date"`
-	EndDate   string `json:"end_date"`
+	StartDate         string `json:"start_date"`
+	EndDate           string `json:"end_date"`
+	AllowClosedPeriod bool   `json:"allow_closed_period"`
 }
 
 type clockifySyncResp struct {
-	RangeStart       string    `json:"range_start"`
-	RangeEnd         string    `json:"range_end"`
-	EmployeesTotal   int       `json:"employees_total"`
-	UsersFound       int       `json:"users_found"`
-	EmployeesMapped  int       `json:"employees_mapped"`
-	EntriesProcessed int       `json:"entries_processed"`
-	EntriesUpserted  int       `json:"entries_upserted"`
-	RunningEntries   int       `json:"running_entries"`
-	SyncedAt         time.Time `json:"synced_at"`
+	RangeStart           string    `json:"range_start"`
+	RangeEnd             string    `json:"range_end"`
+	EmployeesTotal       int       `json:"employees_total"`
+	UsersFound           int       `json:"users_found"`
+	EmployeesMapped      int       `json:"employees_mapped"`
+	EntriesProcessed     int       `json:"entries_processed"`
+	EntriesUpserted      int       `json:"entries_upserted"`
+	EntriesSkippedClosed int       `json:"entries_skipped_closed"`
+	RunningEntries       int       `json:"running_entries"`
+	SyncedAt             time.Time `json:"synced_at"`
 }
 
 type clockifyStatusResp struct {
@@ -608,6 +610,7 @@ func (h *HRHandler) UpsertClockifyConfig(w http.ResponseWriter, r *http.Request)
 func (h *HRHandler) SyncClockifyEntries(w http.ResponseWriter, r *http.Request) {
 	tenantID := mw.GetTenantID(r.Context())
 	userID := mw.GetUserID(r.Context())
+	role := mw.GetRole(r.Context())
 
 	var req syncClockifyReq
 	if err := decodeJSON(r, &req); err != nil {
@@ -618,6 +621,10 @@ func (h *HRHandler) SyncClockifyEntries(w http.ResponseWriter, r *http.Request) 
 	startDate, endDate, err := parseDateRange(req.StartDate, req.EndDate)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if req.AllowClosedPeriod && role != "hr" {
+		httpError(w, "allow_closed_period only for hr", http.StatusForbidden)
 		return
 	}
 
@@ -631,7 +638,7 @@ func (h *HRHandler) SyncClockifyEntries(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	summary, err := h.syncClockifyTenant(r.Context(), tenantID, conn, startDate, endDate)
+	summary, err := h.syncClockifyTenant(r.Context(), tenantID, conn, startDate, endDate, req.AllowClosedPeriod)
 	if err != nil {
 		var internalErr *syncInternalError
 		if errors.As(err, &internalErr) {
@@ -644,13 +651,15 @@ func (h *HRHandler) SyncClockifyEntries(w http.ResponseWriter, r *http.Request) 
 	}
 
 	_ = insertAudit(h.DB, r, tenantID, userID, "sync", "hr_time_entries", 0, nil, map[string]any{
-		"provider":          "clockify",
-		"range_start":       summary.RangeStart,
-		"range_end":         summary.RangeEnd,
-		"users_found":       summary.UsersFound,
-		"users_mapped":      summary.EmployeesMapped,
-		"entries_processed": summary.EntriesProcessed,
-		"entries_upserted":  summary.EntriesUpserted,
+		"provider":               "clockify",
+		"range_start":            summary.RangeStart,
+		"range_end":              summary.RangeEnd,
+		"users_found":            summary.UsersFound,
+		"users_mapped":           summary.EmployeesMapped,
+		"entries_processed":      summary.EntriesProcessed,
+		"entries_upserted":       summary.EntriesUpserted,
+		"entries_skipped_closed": summary.EntriesSkippedClosed,
+		"allow_closed_period":    req.AllowClosedPeriod,
 	})
 
 	writeJSON(w, http.StatusOK, summary)
@@ -764,7 +773,7 @@ func (h *HRHandler) RunClockifyAutoSync(ctx context.Context, lookbackDays int) {
 		summary, err := h.syncClockifyTenant(ctx, item.TenantID, clockifyConnection{
 			WorkspaceID: item.WorkspaceID,
 			APIKey:      item.APIKey,
-		}, startDate, endDate)
+		}, startDate, endDate, false)
 		if err != nil {
 			log.Error().
 				Err(err).
@@ -833,13 +842,14 @@ func nextRunAtUTCHour(now time.Time, hourUTC int) time.Time {
 
 func (h *HRHandler) insertSystemSyncAudit(tenantID uint64, summary clockifySyncResp, action string) error {
 	after := map[string]any{
-		"provider":          "clockify",
-		"range_start":       summary.RangeStart,
-		"range_end":         summary.RangeEnd,
-		"users_found":       summary.UsersFound,
-		"users_mapped":      summary.EmployeesMapped,
-		"entries_processed": summary.EntriesProcessed,
-		"entries_upserted":  summary.EntriesUpserted,
+		"provider":               "clockify",
+		"range_start":            summary.RangeStart,
+		"range_end":              summary.RangeEnd,
+		"users_found":            summary.UsersFound,
+		"users_mapped":           summary.EmployeesMapped,
+		"entries_processed":      summary.EntriesProcessed,
+		"entries_upserted":       summary.EntriesUpserted,
+		"entries_skipped_closed": summary.EntriesSkippedClosed,
 	}
 
 	_, err := h.DB.Exec(`
@@ -849,7 +859,13 @@ func (h *HRHandler) insertSystemSyncAudit(tenantID uint64, summary clockifySyncR
 	return err
 }
 
-func (h *HRHandler) syncClockifyTenant(ctx context.Context, tenantID uint64, conn clockifyConnection, startDate, endDate time.Time) (clockifySyncResp, error) {
+func (h *HRHandler) syncClockifyTenant(
+	ctx context.Context,
+	tenantID uint64,
+	conn clockifyConnection,
+	startDate, endDate time.Time,
+	allowClosedPeriod bool,
+) (clockifySyncResp, error) {
 	client := newClockifyClient(conn.APIKey)
 	users, err := client.ListUsers(ctx, conn.WorkspaceID)
 	if err != nil {
@@ -937,6 +953,7 @@ func (h *HRHandler) syncClockifyTenant(ctx context.Context, tenantID uint64, con
 	apiEnd := endDate.Add(24 * time.Hour)
 	entriesProcessed := 0
 	entriesUpserted := 0
+	entriesSkippedClosed := 0
 	runningEntries := 0
 
 	for _, clockifyUserID := range mappedUserIDs {
@@ -955,6 +972,17 @@ func (h *HRHandler) syncClockifyTenant(ctx context.Context, tenantID uint64, con
 			startAt, err := parseClockifyTimestamp(entry.TimeInterval.Start)
 			if err != nil {
 				continue
+			}
+			if !allowClosedPeriod {
+				closedDate := dateOnly(startAt.UTC())
+				isClosed, closeErr := h.isDateClosedForTimeBank(tenantID, closedDate)
+				if closeErr != nil {
+					return clockifySyncResp{}, &syncInternalError{Message: "db read error", Err: closeErr}
+				}
+				if isClosed {
+					entriesSkippedClosed++
+					continue
+				}
 			}
 
 			endAt, err := parseClockifyOptionalTimestamp(entry.TimeInterval.End)
@@ -1018,15 +1046,16 @@ func (h *HRHandler) syncClockifyTenant(ctx context.Context, tenantID uint64, con
 	}
 
 	return clockifySyncResp{
-		RangeStart:       startDate.Format("2006-01-02"),
-		RangeEnd:         endDate.Format("2006-01-02"),
-		EmployeesTotal:   len(employees),
-		UsersFound:       len(users),
-		EmployeesMapped:  len(mappedEmployees),
-		EntriesProcessed: entriesProcessed,
-		EntriesUpserted:  entriesUpserted,
-		RunningEntries:   runningEntries,
-		SyncedAt:         now,
+		RangeStart:           startDate.Format("2006-01-02"),
+		RangeEnd:             endDate.Format("2006-01-02"),
+		EmployeesTotal:       len(employees),
+		UsersFound:           len(users),
+		EmployeesMapped:      len(mappedEmployees),
+		EntriesProcessed:     entriesProcessed,
+		EntriesUpserted:      entriesUpserted,
+		EntriesSkippedClosed: entriesSkippedClosed,
+		RunningEntries:       runningEntries,
+		SyncedAt:             now,
 	}, nil
 }
 

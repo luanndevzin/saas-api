@@ -147,6 +147,16 @@ func (h *HRHandler) ClockIn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now().UTC()
+	closedDate := dateOnly(now)
+	closed, err := h.isDateClosedForTimeBank(tenantID, closedDate)
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+	if closed {
+		httpError(w, "period is closed for this date", http.StatusConflict)
+		return
+	}
 	externalID := genCode("punch")
 
 	res, err := h.DB.Exec(`
@@ -199,6 +209,16 @@ func (h *HRHandler) ClockOut(w http.ResponseWriter, r *http.Request) {
 	}
 	if openEntry == nil {
 		httpError(w, "no open time entry found", http.StatusNotFound)
+		return
+	}
+	closedDate := dateOnly(openEntry.StartAt.UTC())
+	periodClosed, err := h.isDateClosedForTimeBank(tenantID, closedDate)
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+	if periodClosed {
+		httpError(w, "period is closed for this date", http.StatusConflict)
 		return
 	}
 

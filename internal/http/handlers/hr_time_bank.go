@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -147,6 +148,35 @@ type timeBankClosureItemExport struct {
 	ExpectedSeconds   int64  `db:"expected_seconds"`
 	AdjustmentSeconds int64  `db:"adjustment_seconds"`
 	BalanceSeconds    int64  `db:"balance_seconds"`
+}
+
+type TimeBankClosureEmployee struct {
+	EmployeeID        uint64 `db:"employee_id" json:"employee_id"`
+	EmployeeName      string `db:"employee_name" json:"employee_name"`
+	WorkedSeconds     int64  `db:"worked_seconds" json:"worked_seconds"`
+	ExpectedSeconds   int64  `db:"expected_seconds" json:"expected_seconds"`
+	AdjustmentSeconds int64  `db:"adjustment_seconds" json:"adjustment_seconds"`
+	BalanceSeconds    int64  `db:"balance_seconds" json:"balance_seconds"`
+}
+
+type timeBankCardEntry struct {
+	StartAt         time.Time  `db:"start_at"`
+	EndAt           *time.Time `db:"end_at"`
+	DurationSeconds int64      `db:"duration_seconds"`
+	IsRunning       bool       `db:"is_running"`
+}
+
+type timeBankCardDay struct {
+	Date              time.Time
+	WeekdayLabel      string
+	Entry1            string
+	Exit1             string
+	Entry2            string
+	Exit2             string
+	WorkedSeconds     int64
+	ExpectedSeconds   int64
+	AdjustmentSeconds int64
+	BalanceSeconds    int64
 }
 
 func (h *HRHandler) GetTimeBankSettings(w http.ResponseWriter, r *http.Request) {
@@ -506,6 +536,20 @@ func (h *HRHandler) CloseTimeBankPeriod(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	var pendingAdjustments int64
+	if err := h.DB.Get(&pendingAdjustments, `
+		SELECT COUNT(*)
+		FROM hr_time_bank_adjustments
+		WHERE tenant_id=? AND status=? AND effective_date>=? AND effective_date<=?
+	`, tenantID, timeBankStatusPending, startDate, endDate); err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+	if pendingAdjustments > 0 {
+		httpError(w, "there are pending time bank adjustments in selected period", http.StatusConflict)
+		return
+	}
+
 	var ignoreID *uint64
 	var samePeriodID uint64
 	findErr := h.DB.Get(&samePeriodID, `
@@ -710,6 +754,157 @@ func (h *HRHandler) ExportTimeBankClosureCSV(w http.ResponseWriter, r *http.Requ
 			formatHoursCSV(item.BalanceSeconds),
 		})
 	}
+	writer.Flush()
+}
+
+func (h *HRHandler) ListTimeBankClosureEmployees(w http.ResponseWriter, r *http.Request) {
+	tenantID := mw.GetTenantID(r.Context())
+
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httpError(w, "invalid request id", http.StatusBadRequest)
+		return
+	}
+
+	_, err = h.getTimeBankClosureByID(h.DB, tenantID, id)
+	if err == sql.ErrNoRows {
+		httpError(w, "time bank closure not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	items := make([]TimeBankClosureEmployee, 0, 200)
+	if err := h.DB.Select(&items, `
+		SELECT i.employee_id, e.name AS employee_name,
+		       i.worked_seconds, i.expected_seconds, i.adjustment_seconds, i.balance_seconds
+		FROM hr_time_bank_closure_items i
+		JOIN employees e ON e.tenant_id=i.tenant_id AND e.id=i.employee_id
+		WHERE i.tenant_id=? AND i.closure_id=?
+		ORDER BY e.name ASC, i.employee_id ASC
+	`, tenantID, id); err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, items)
+}
+
+func (h *HRHandler) ExportTimeBankEmployeeCardCSV(w http.ResponseWriter, r *http.Request) {
+	tenantID := mw.GetTenantID(r.Context())
+
+	closureID, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httpError(w, "invalid request id", http.StatusBadRequest)
+		return
+	}
+	employeeID, err := strconv.ParseUint(chi.URLParam(r, "employee_id"), 10, 64)
+	if err != nil {
+		httpError(w, "invalid employee id", http.StatusBadRequest)
+		return
+	}
+
+	closure, err := h.getTimeBankClosureByID(h.DB, tenantID, closureID)
+	if err == sql.ErrNoRows {
+		httpError(w, "time bank closure not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	var employee TimeBankClosureEmployee
+	if err := h.DB.Get(&employee, `
+		SELECT i.employee_id, e.name AS employee_name,
+		       i.worked_seconds, i.expected_seconds, i.adjustment_seconds, i.balance_seconds
+		FROM hr_time_bank_closure_items i
+		JOIN employees e ON e.tenant_id=i.tenant_id AND e.id=i.employee_id
+		WHERE i.tenant_id=? AND i.closure_id=? AND i.employee_id=?
+		LIMIT 1
+	`, tenantID, closureID, employeeID); err == sql.ErrNoRows {
+		httpError(w, "employee not found in closure", http.StatusNotFound)
+		return
+	} else if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	settings, err := h.loadTimeBankSettings(tenantID)
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	days, err := h.buildTimeCardDays(tenantID, employeeID, closure.PeriodStart, closure.PeriodEnd, settings)
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	filename := fmt.Sprintf(
+		"cartao-ponto-%d-%s-a-%s.csv",
+		employee.EmployeeID,
+		closure.PeriodStart.Format("2006-01-02"),
+		closure.PeriodEnd.Format("2006-01-02"),
+	)
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.WriteHeader(http.StatusOK)
+
+	writer := csv.NewWriter(w)
+	_ = writer.Write([]string{"cartao_ponto"})
+	_ = writer.Write([]string{fmt.Sprintf("colaborador,%s", employee.EmployeeName)})
+	_ = writer.Write([]string{fmt.Sprintf(
+		"periodo,%s,%s",
+		closure.PeriodStart.Format("2006-01-02"),
+		closure.PeriodEnd.Format("2006-01-02"),
+	)})
+	_ = writer.Write([]string{})
+	_ = writer.Write([]string{
+		"data",
+		"dia_semana",
+		"ent_1",
+		"sai_1",
+		"ent_2",
+		"sai_2",
+		"trabalhadas_horas",
+		"previstas_horas",
+		"ajustes_horas",
+		"saldo_horas",
+	})
+
+	for _, day := range days {
+		_ = writer.Write([]string{
+			day.Date.Format("2006-01-02"),
+			day.WeekdayLabel,
+			day.Entry1,
+			day.Exit1,
+			day.Entry2,
+			day.Exit2,
+			formatHoursCSV(day.WorkedSeconds),
+			formatHoursCSV(day.ExpectedSeconds),
+			formatHoursCSV(day.AdjustmentSeconds),
+			formatHoursCSV(day.BalanceSeconds),
+		})
+	}
+
+	_ = writer.Write([]string{})
+	_ = writer.Write([]string{
+		"totais",
+		"",
+		"",
+		"",
+		"",
+		"",
+		formatHoursCSV(employee.WorkedSeconds),
+		formatHoursCSV(employee.ExpectedSeconds),
+		formatHoursCSV(employee.AdjustmentSeconds),
+		formatHoursCSV(employee.BalanceSeconds),
+	})
+
 	writer.Flush()
 }
 
@@ -1080,6 +1275,134 @@ func nullTimePtr(v sql.NullTime) *time.Time {
 	}
 	t := dateOnly(v.Time.UTC())
 	return &t
+}
+
+func (h *HRHandler) buildTimeCardDays(
+	tenantID uint64,
+	employeeID uint64,
+	startDate time.Time,
+	endDate time.Time,
+	settings timeBankSettings,
+) ([]timeBankCardDay, error) {
+	entries := make([]timeBankCardEntry, 0, 128)
+	if err := h.DB.Select(&entries, `
+		SELECT start_at, end_at, duration_seconds, is_running
+		FROM hr_time_entries
+		WHERE tenant_id=? AND employee_id=? AND start_at>=? AND start_at<?
+		ORDER BY start_at ASC, id ASC
+	`, tenantID, employeeID, startDate, endDate.Add(24*time.Hour)); err != nil {
+		return nil, err
+	}
+
+	adjustRows := make([]struct {
+		DayDate           time.Time `db:"day_date"`
+		AdjustmentSeconds int64     `db:"adjustment_seconds"`
+	}, 0, 64)
+	if err := h.DB.Select(&adjustRows, `
+		SELECT effective_date AS day_date, COALESCE(SUM(seconds_delta), 0) AS adjustment_seconds
+		FROM hr_time_bank_adjustments
+		WHERE tenant_id=? AND employee_id=? AND status=? AND effective_date>=? AND effective_date<=?
+		GROUP BY effective_date
+	`, tenantID, employeeID, timeBankStatusApproved, startDate, endDate); err != nil {
+		return nil, err
+	}
+	adjustByDay := make(map[string]int64, len(adjustRows))
+	for _, row := range adjustRows {
+		adjustByDay[dateOnly(row.DayDate.UTC()).Format("2006-01-02")] = row.AdjustmentSeconds
+	}
+
+	entriesByDay := make(map[string][]timeBankCardEntry, 64)
+	for _, entry := range entries {
+		day := dateOnly(entry.StartAt.UTC()).Format("2006-01-02")
+		entriesByDay[day] = append(entriesByDay[day], entry)
+	}
+
+	days := make([]timeBankCardDay, 0, int(endDate.Sub(startDate).Hours()/24)+1)
+	for day := dateOnly(startDate.UTC()); !day.After(dateOnly(endDate.UTC())); day = day.AddDate(0, 0, 1) {
+		key := day.Format("2006-01-02")
+		dayEntries := entriesByDay[key]
+		sort.Slice(dayEntries, func(i, j int) bool {
+			return dayEntries[i].StartAt.Before(dayEntries[j].StartAt)
+		})
+
+		row := timeBankCardDay{
+			Date:              day,
+			WeekdayLabel:      weekdayPT(day.Weekday()),
+			AdjustmentSeconds: adjustByDay[key],
+		}
+
+		workDay := day.Weekday() != time.Sunday && (settings.IncludeSaturday || day.Weekday() != time.Saturday)
+		if workDay {
+			row.ExpectedSeconds = int64(settings.TargetDailyMinutes) * 60
+		}
+
+		for idx, entry := range dayEntries {
+			row.WorkedSeconds += normalizeDurationForCard(entry)
+			startLabel := entry.StartAt.UTC().Format("15:04")
+			endLabel := "-"
+			if entry.EndAt != nil {
+				endLabel = entry.EndAt.UTC().Format("15:04")
+			}
+
+			if idx == 0 {
+				row.Entry1 = startLabel
+				row.Exit1 = endLabel
+			} else if idx == 1 {
+				row.Entry2 = startLabel
+				row.Exit2 = endLabel
+			}
+		}
+
+		if row.Entry1 == "" {
+			row.Entry1 = "-"
+		}
+		if row.Exit1 == "" {
+			row.Exit1 = "-"
+		}
+		if row.Entry2 == "" {
+			row.Entry2 = "-"
+		}
+		if row.Exit2 == "" {
+			row.Exit2 = "-"
+		}
+
+		row.BalanceSeconds = row.WorkedSeconds + row.AdjustmentSeconds - row.ExpectedSeconds
+		days = append(days, row)
+	}
+
+	return days, nil
+}
+
+func normalizeDurationForCard(entry timeBankCardEntry) int64 {
+	if entry.DurationSeconds > 0 {
+		return entry.DurationSeconds
+	}
+	if entry.EndAt != nil {
+		d := int64(entry.EndAt.Sub(entry.StartAt).Seconds())
+		if d > 0 {
+			return d
+		}
+	}
+	return 0
+}
+
+func weekdayPT(wd time.Weekday) string {
+	switch wd {
+	case time.Monday:
+		return "seg"
+	case time.Tuesday:
+		return "ter"
+	case time.Wednesday:
+		return "qua"
+	case time.Thursday:
+		return "qui"
+	case time.Friday:
+		return "sex"
+	case time.Saturday:
+		return "sab"
+	default:
+		return "dom"
+	}
 }
 
 type errString string

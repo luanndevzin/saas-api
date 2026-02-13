@@ -153,6 +153,7 @@ export interface ClockifySyncResult {
   employees_mapped: number;
   entries_processed: number;
   entries_upserted: number;
+  entries_skipped_closed?: number;
   running_entries: number;
   synced_at: string;
 }
@@ -264,6 +265,15 @@ export interface TimeBankClosure {
   total_expected_seconds: number;
   total_adjustment_seconds: number;
   total_balance_seconds: number;
+}
+
+export interface TimeBankClosureEmployee {
+  employee_id: number;
+  employee_name: string;
+  worked_seconds: number;
+  expected_seconds: number;
+  adjustment_seconds: number;
+  balance_seconds: number;
 }
 
 export interface MyTimeEntries {
@@ -409,6 +419,9 @@ function translateApiMessage(status: number, data: any) {
     [/adjustment status must be pending\\|approved\\|rejected/i, "Status do ajuste deve ser pending, approved ou rejected."],
     [/time bank adjustment not found/i, "Ajuste de banco de horas nao encontrado."],
     [/time bank closure not found/i, "Fechamento de banco de horas nao encontrado."],
+    [/employee not found in closure/i, "Colaborador nao encontrado neste fechamento."],
+    [/allow_closed_period only for hr/i, "Somente RH pode ignorar periodo fechado na sincronizacao."],
+    [/there are pending time bank adjustments in selected period/i, "Existem ajustes pendentes de aprovacao no periodo selecionado."],
     [/colaborador role must be provisioned by hr/i, "Role colaborador so pode ser provisionada pelo RH."],
     [/user already has elevated role/i, "Este usuario ja possui perfil administrativo neste tenant."],
     [/user already linked to another employee/i, "Este usuario ja esta vinculado a outro colaborador."],

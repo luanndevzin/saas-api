@@ -16,6 +16,7 @@ import {
   Position,
   Team,
   TimeBankAdjustment,
+  TimeBankClosureEmployee,
   TimeBankClosure,
   TimeBankSettings,
   TimeBankSummary,
@@ -118,12 +119,16 @@ export function HRPage() {
   const [timeBankSummary, setTimeBankSummary] = useState<TimeBankSummary>(defaultTimeBankSummary);
   const [timeBankAdjustments, setTimeBankAdjustments] = useState<TimeBankAdjustment[]>([]);
   const [timeBankClosures, setTimeBankClosures] = useState<TimeBankClosure[]>([]);
+  const [closureEmployees, setClosureEmployees] = useState<TimeBankClosureEmployee[]>([]);
+  const [selectedClosureId, setSelectedClosureId] = useState<number | null>(null);
+  const [loadingClosureEmployees, setLoadingClosureEmployees] = useState(false);
 
   const tabParam = searchParams.get("secao");
   const tab: Tab = isTab(tabParam) ? tabParam : "estrutura";
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [savingClockify, setSavingClockify] = useState(false);
   const [syncingClockify, setSyncingClockify] = useState(false);
+  const [allowClosedClockifySync, setAllowClosedClockifySync] = useState(false);
   const [savingTimeBankSettings, setSavingTimeBankSettings] = useState(false);
   const [loadingTimeBankSummary, setLoadingTimeBankSummary] = useState(false);
   const [savingTimeBankAdjustment, setSavingTimeBankAdjustment] = useState(false);
@@ -473,6 +478,54 @@ export function HRPage() {
       toast({ title: "CSV exportado com sucesso", variant: "success" });
     } catch (err: any) {
       toast({ title: "Erro ao exportar CSV", description: err.message, variant: "error" });
+    } finally {
+      setExportingClosureId(null);
+    }
+  };
+
+  const loadClosureEmployees = async (closureId: number) => {
+    setLoadingClosureEmployees(true);
+    setSelectedClosureId(closureId);
+    try {
+      const data = await request<TimeBankClosureEmployee[]>(`/time-bank/closures/${closureId}/employees`);
+      setClosureEmployees(toArray(data));
+    } catch (err: any) {
+      toast({ title: "Erro ao carregar colaboradores do fechamento", description: err.message, variant: "error" });
+    } finally {
+      setLoadingClosureEmployees(false);
+    }
+  };
+
+  const exportEmployeeTimeCardCSV = async (closureId: number, employeeId: number) => {
+    if (!token) {
+      toast({ title: "Sessao expirada", description: "Faca login novamente.", variant: "error" });
+      return;
+    }
+
+    setExportingClosureId(closureId);
+    try {
+      const apiBase = baseUrl.replace(/\/$/, "");
+      const res = await fetch(`${apiBase}/time-bank/closures/${closureId}/employees/${employeeId}/card.csv`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error((message || "Falha ao exportar cartao").trim());
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const contentDisposition = res.headers.get("content-disposition") || "";
+      const match = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
+      link.href = url;
+      link.download = match?.[1] || `cartao-ponto-${employeeId}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast({ title: "Cartao ponto exportado", variant: "success" });
+    } catch (err: any) {
+      toast({ title: "Erro ao exportar cartao ponto", description: err.message, variant: "error" });
     } finally {
       setExportingClosureId(null);
     }
@@ -852,12 +905,16 @@ export function HRPage() {
     }
   };
 
-  const runClockifySync = async (startDate: string, endDate: string) => {
+  const runClockifySync = async (startDate: string, endDate: string, allowClosedPeriod = false) => {
     setSyncingClockify(true);
     try {
       const result = await request<ClockifySyncResult>("/integrations/clockify/sync", {
         method: "POST",
-        body: { start_date: startDate, end_date: endDate },
+        body: {
+          start_date: startDate,
+          end_date: endDate,
+          allow_closed_period: allowClosedPeriod,
+        },
       });
       setClockifySyncResult(result);
       setEntriesFilterStart(startDate);
@@ -890,7 +947,7 @@ export function HRPage() {
     const fd = new FormData(e.currentTarget);
     const startDate = (fd.get("start_date") || "").toString().trim();
     const endDate = (fd.get("end_date") || "").toString().trim();
-    await runClockifySync(startDate, endDate);
+      await runClockifySync(startDate, endDate, allowClosedClockifySync);
   };
 
   const syncInitial30Days = async () => {
@@ -907,7 +964,7 @@ export function HRPage() {
     start.setDate(start.getDate() - 30);
     const startDate = start.toISOString().slice(0, 10);
     const endDate = end.toISOString().slice(0, 10);
-    await runClockifySync(startDate, endDate);
+    await runClockifySync(startDate, endDate, allowClosedClockifySync);
   };
 
   const refreshTimeEntries = async () => {
@@ -1347,6 +1404,18 @@ export function HRPage() {
                   required
                 />
               </div>
+              {me?.role === "hr" && (
+                <div>
+                  <Label>Permitir alterar periodo fechado</Label>
+                  <Select
+                    value={allowClosedClockifySync ? "1" : "0"}
+                    onChange={(e) => setAllowClosedClockifySync(e.target.value === "1")}
+                  >
+                    <option value="0">Nao (recomendado)</option>
+                    <option value="1">Sim (somente excecao RH)</option>
+                  </Select>
+                </div>
+              )}
               <Button type="submit" className="w-full" disabled={syncingClockify || !clockifyConfig.configured}>
                 {syncingClockify ? "Sincronizando..." : "Sincronizar com Clockify"}
               </Button>
@@ -1365,6 +1434,7 @@ export function HRPage() {
                 <div>Colaboradores mapeados: {clockifySyncResult.employees_mapped}</div>
                 <div>Batidas processadas: {clockifySyncResult.entries_processed}</div>
                 <div>Batidas gravadas: {clockifySyncResult.entries_upserted}</div>
+                <div>Batidas ignoradas por periodo fechado: {clockifySyncResult.entries_skipped_closed || 0}</div>
               </div>
             )}
 
@@ -1800,6 +1870,14 @@ export function HRPage() {
                           >
                             {exportingClosureId === closure.id ? "Exportando..." : "CSV"}
                           </Button>
+                          <Button
+                            size="xs"
+                            variant={selectedClosureId === closure.id ? "default" : "outline"}
+                            onClick={() => loadClosureEmployees(closure.id)}
+                            disabled={loadingClosureEmployees && selectedClosureId === closure.id}
+                          >
+                            {loadingClosureEmployees && selectedClosureId === closure.id ? "Carregando..." : "Cartoes"}
+                          </Button>
                           {closure.status === "closed" && (
                             <Button
                               size="xs"
@@ -1818,6 +1896,65 @@ export function HRPage() {
                     <TR>
                       <TD colSpan={6} className="text-center text-sm text-muted-foreground">
                         Nenhum fechamento registrado.
+                      </TD>
+                    </TR>
+                  )}
+                </TBody>
+              </Table>
+            </div>
+          </Card>
+
+          <Card id="form-banco-cartoes" className="xl:col-span-3">
+            <CardHeader className="mb-2">
+              <CardTitle>Cartao ponto por colaborador</CardTitle>
+              <CardDescription>
+                {selectedClosureId
+                  ? `Fechamento #${selectedClosureId}: exporte o cartao individual de cada colaborador.`
+                  : "Selecione um fechamento na tabela acima para carregar os cartoes."}
+              </CardDescription>
+            </CardHeader>
+            <div className="overflow-auto px-4 pb-4">
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>Colaborador</TH>
+                    <TH>Trabalhadas</TH>
+                    <TH>Previstas</TH>
+                    <TH>Ajustes</TH>
+                    <TH>Saldo</TH>
+                    <TH />
+                  </TR>
+                </THead>
+                <TBody>
+                  {closureEmployees.map((item) => (
+                    <TR key={item.employee_id}>
+                      <TD>{item.employee_name}</TD>
+                      <TD>{formatHours(item.worked_seconds)}</TD>
+                      <TD>{formatHours(item.expected_seconds)}</TD>
+                      <TD>{formatSignedHours(item.adjustment_seconds)}</TD>
+                      <TD>
+                        <span className={item.balance_seconds >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                          {formatSignedHours(item.balance_seconds)}
+                        </span>
+                      </TD>
+                      <TD>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => selectedClosureId && exportEmployeeTimeCardCSV(selectedClosureId, item.employee_id)}
+                          disabled={!selectedClosureId || exportingClosureId === selectedClosureId}
+                        >
+                          {exportingClosureId === selectedClosureId ? "Exportando..." : "Baixar cartao"}
+                        </Button>
+                      </TD>
+                    </TR>
+                  ))}
+                  {closureEmployees.length === 0 && (
+                    <TR>
+                      <TD colSpan={6} className="text-center text-sm text-muted-foreground">
+                        {selectedClosureId
+                          ? "Nenhum colaborador encontrado para este fechamento."
+                          : "Selecione um fechamento para visualizar os cartoes."}
                       </TD>
                     </TR>
                   )}
