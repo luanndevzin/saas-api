@@ -95,7 +95,7 @@ const defaultTimeBankSummary: TimeBankSummary = {
 };
 
 export function HRPage() {
-  const { request, me } = useApi();
+  const { request, me, baseUrl, token } = useApi();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -129,6 +129,7 @@ export function HRPage() {
   const [savingTimeBankAdjustment, setSavingTimeBankAdjustment] = useState(false);
   const [closingTimeBankPeriod, setClosingTimeBankPeriod] = useState(false);
   const [reopeningClosureId, setReopeningClosureId] = useState<number | null>(null);
+  const [exportingClosureId, setExportingClosureId] = useState<number | null>(null);
   const [reviewingAdjustmentId, setReviewingAdjustmentId] = useState<number | null>(null);
   const [reviewingAdjustmentAction, setReviewingAdjustmentAction] = useState<"approve" | "reject" | null>(null);
   const [creatingEmployeeAccount, setCreatingEmployeeAccount] = useState(false);
@@ -436,6 +437,44 @@ export function HRPage() {
       toast({ title: "Erro ao reabrir fechamento", description: err.message, variant: "error" });
     } finally {
       setReopeningClosureId(null);
+    }
+  };
+
+  const exportTimeBankClosureCSV = async (closureId: number) => {
+    if (!token) {
+      toast({ title: "Sessao expirada", description: "Faca login novamente.", variant: "error" });
+      return;
+    }
+
+    setExportingClosureId(closureId);
+    try {
+      const apiBase = baseUrl.replace(/\/$/, "");
+      const res = await fetch(`${apiBase}/time-bank/closures/${closureId}/export.csv`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error((message || "Falha ao exportar CSV").trim());
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const fallbackName = `fechamento-banco-horas-${closureId}.csv`;
+      const contentDisposition = res.headers.get("content-disposition") || "";
+      const match = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
+      link.href = url;
+      link.download = match?.[1] || fallbackName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      toast({ title: "CSV exportado com sucesso", variant: "success" });
+    } catch (err: any) {
+      toast({ title: "Erro ao exportar CSV", description: err.message, variant: "error" });
+    } finally {
+      setExportingClosureId(null);
     }
   };
 
@@ -1752,16 +1791,26 @@ export function HRPage() {
                       </TD>
                       <TD>{formatDateTime(closure.closed_at || closure.created_at)}</TD>
                       <TD>
-                        {closure.status === "closed" && (
+                        <div className="flex gap-2">
                           <Button
                             size="xs"
                             variant="outline"
-                            onClick={() => reopenTimeBankClosure(closure.id)}
-                            disabled={reopeningClosureId === closure.id}
+                            onClick={() => exportTimeBankClosureCSV(closure.id)}
+                            disabled={exportingClosureId === closure.id}
                           >
-                            {reopeningClosureId === closure.id ? "Reabrindo..." : "Reabrir"}
+                            {exportingClosureId === closure.id ? "Exportando..." : "CSV"}
                           </Button>
-                        )}
+                          {closure.status === "closed" && (
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => reopenTimeBankClosure(closure.id)}
+                              disabled={reopeningClosureId === closure.id}
+                            >
+                              {reopeningClosureId === closure.id ? "Reabrindo..." : "Reabrir"}
+                            </Button>
+                          )}
+                        </div>
                       </TD>
                     </TR>
                   ))}

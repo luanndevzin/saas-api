@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/csv"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -136,6 +138,15 @@ type TimeBankClosure struct {
 	TotalExpectedSeconds int64      `db:"total_expected_seconds" json:"total_expected_seconds"`
 	TotalAdjustSeconds   int64      `db:"total_adjustment_seconds" json:"total_adjustment_seconds"`
 	TotalBalanceSeconds  int64      `db:"total_balance_seconds" json:"total_balance_seconds"`
+}
+
+type timeBankClosureItemExport struct {
+	EmployeeID        uint64 `db:"employee_id"`
+	EmployeeName      string `db:"employee_name"`
+	WorkedSeconds     int64  `db:"worked_seconds"`
+	ExpectedSeconds   int64  `db:"expected_seconds"`
+	AdjustmentSeconds int64  `db:"adjustment_seconds"`
+	BalanceSeconds    int64  `db:"balance_seconds"`
 }
 
 func (h *HRHandler) GetTimeBankSettings(w http.ResponseWriter, r *http.Request) {
@@ -638,6 +649,70 @@ func (h *HRHandler) ListTimeBankClosures(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, items)
 }
 
+func (h *HRHandler) ExportTimeBankClosureCSV(w http.ResponseWriter, r *http.Request) {
+	tenantID := mw.GetTenantID(r.Context())
+
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httpError(w, "invalid request id", http.StatusBadRequest)
+		return
+	}
+
+	closure, err := h.getTimeBankClosureByID(h.DB, tenantID, id)
+	if err == sql.ErrNoRows {
+		httpError(w, "time bank closure not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	items := make([]timeBankClosureItemExport, 0, 200)
+	if err := h.DB.Select(&items, `
+		SELECT i.employee_id, e.name AS employee_name, i.worked_seconds, i.expected_seconds,
+		       i.adjustment_seconds, i.balance_seconds
+		FROM hr_time_bank_closure_items i
+		JOIN employees e ON e.tenant_id=i.tenant_id AND e.id=i.employee_id
+		WHERE i.tenant_id=? AND i.closure_id=?
+		ORDER BY e.name ASC, i.employee_id ASC
+	`, tenantID, id); err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	filename := fmt.Sprintf(
+		"fechamento-banco-horas-%s-a-%s.csv",
+		closure.PeriodStart.Format("2006-01-02"),
+		closure.PeriodEnd.Format("2006-01-02"),
+	)
+
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.WriteHeader(http.StatusOK)
+
+	writer := csv.NewWriter(w)
+	_ = writer.Write([]string{
+		"employee_id",
+		"colaborador",
+		"trabalhadas_horas",
+		"previstas_horas",
+		"ajustes_horas",
+		"saldo_horas",
+	})
+	for _, item := range items {
+		_ = writer.Write([]string{
+			strconv.FormatUint(item.EmployeeID, 10),
+			item.EmployeeName,
+			formatHoursCSV(item.WorkedSeconds),
+			formatHoursCSV(item.ExpectedSeconds),
+			formatHoursCSV(item.AdjustmentSeconds),
+			formatHoursCSV(item.BalanceSeconds),
+		})
+	}
+	writer.Flush()
+}
+
 func (h *HRHandler) ReopenTimeBankClosure(w http.ResponseWriter, r *http.Request) {
 	tenantID := mw.GetTenantID(r.Context())
 	userID := mw.GetUserID(r.Context())
@@ -958,6 +1033,10 @@ func isValidTimeBankStatus(status string) bool {
 	default:
 		return false
 	}
+}
+
+func formatHoursCSV(seconds int64) string {
+	return strconv.FormatFloat(float64(seconds)/3600, 'f', 2, 64)
 }
 
 func countWorkDays(startDate, endDate time.Time, includeSaturday bool) int64 {
