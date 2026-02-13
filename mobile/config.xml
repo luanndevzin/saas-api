@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.saas.controlpanel" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>SaaSControlMobile</name>
+    <description>
+        Mobile shell do SaaS Control Panel (webview Cordova).
+    </description>
+    <author email="team@saas-control.local" href="https://saas-web-c37d.onrender.com">
+        SaaS Control Team
+    </author>
+    <content src="index.html" />
+    <allow-navigation href="*" />
+    <access origin="*" />
+    <preference name="DisallowOverscroll" value="true" />
+    <preference name="Fullscreen" value="false" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+</widget>

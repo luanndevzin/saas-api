@@ -1,0 +1,26 @@
+{
+  "name": "com.saas.controlpanel",
+  "displayName": "SaaSControlMobile",
+  "version": "1.0.0",
+  "description": "Mobile shell Cordova para o SaaS Control Panel.",
+  "main": "index.js",
+  "scripts": {
+    "prepare:web": "cd ../web && npm run cordova:prepare",
+    "platform:add:browser": "cordova platform add browser",
+    "run:browser": "cordova run browser",
+    "build:browser": "cordova build browser"
+  },
+  "keywords": [
+    "ecosystem:cordova"
+  ],
+  "author": "SaaS Control Team",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "cordova-browser": "^7.0.0"
+  },
+  "cordova": {
+    "platforms": [
+      "browser"
+    ]
+  }
+}

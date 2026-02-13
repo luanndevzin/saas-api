@@ -198,6 +198,16 @@ export interface HRTimeEntry {
   updated_at?: string;
 }
 
+export interface MyTimeEntries {
+  employee_id: number;
+  employee_name: string;
+  employee_email?: string | null;
+  now_utc: string;
+  today_seconds: number;
+  open_entry?: HRTimeEntry | null;
+  entries: HRTimeEntry[];
+}
+
 export interface Vendor {
   id: number;
   name: string;
@@ -311,6 +321,10 @@ function translateApiMessage(status: number, data: any) {
     [/clockify is not configured/i, "Integracao com Clockify nao configurada."],
     [/clockify rate limit exceeded/i, "Clockify no limite de requisicoes. Tente novamente em instantes."],
     [/clockify connection failed/i, "Falha ao conectar com o Clockify."],
+    [/employee profile not linked to user/i, "Seu usuario nao esta vinculado a um colaborador."],
+    [/employee is not active/i, "Seu cadastro de colaborador nao esta ativo para bater ponto."],
+    [/you already have an open time entry/i, "Ja existe uma batida em aberto."],
+    [/no open time entry found/i, "Nao ha batida em aberto para encerrar."],
     [/unknown field/i, "Campo nao permitido no corpo da requisicao."],
     [/invalid character|cannot unmarshal/i, "JSON invalido no corpo da requisicao."],
     [/could not create/i, "Nao foi possivel concluir a criacao. Verifique os dados enviados."],

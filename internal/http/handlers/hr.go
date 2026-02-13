@@ -1627,6 +1627,18 @@ func localizeHRMessage(msg string) string {
 		return "expires_at deve estar no formato YYYY-MM-DD"
 	case "could not create document":
 		return "nao foi possivel criar documento"
+	case "employee profile not linked to user":
+		return "usuario autenticado nao esta vinculado a um colaborador"
+	case "employee is not active":
+		return "colaborador nao esta ativo para bater ponto"
+	case "you already have an open time entry":
+		return "ja existe uma batida em aberto para este colaborador"
+	case "no open time entry found":
+		return "nenhuma batida em aberto foi encontrada"
+	case "could not create time entry":
+		return "nao foi possivel registrar batida de entrada"
+	case "could not close time entry":
+		return "nao foi possivel registrar batida de saida"
 	case "clockify api_key is required":
 		return "api_key do Clockify e obrigatorio"
 	case "clockify workspace_id is required":

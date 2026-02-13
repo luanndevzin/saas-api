@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:mobile": "vite build --base ./",
+    "sync:cordova": "node ./scripts/sync-cordova.mjs",
+    "cordova:prepare": "npm run build:mobile && npm run sync:cordova",
+    "cordova:run:browser": "npm run cordova:prepare && cd ../mobile && npx cordova run browser"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.0.2",

@@ -56,6 +56,10 @@ func NewRouter(db *sqlx.DB, log zerolog.Logger, jwtSecret []byte, jwtIssuer stri
 
 			// qualquer usuario autenticado
 			pr.Get("/me", authH.Me)
+			hr := &handlers.HRHandler{DB: db}
+			pr.Get("/time-entries/me", hr.GetMyTimeEntries)
+			pr.Post("/time-entries/clock-in", hr.ClockIn)
+			pr.Post("/time-entries/clock-out", hr.ClockOut)
 
 			// -------------------
 			// RH: owner + hr
@@ -63,7 +67,6 @@ func NewRouter(db *sqlx.DB, log zerolog.Logger, jwtSecret []byte, jwtIssuer stri
 			pr.Group(func(r chi.Router) {
 				r.Use(mw.RequireRoles("owner", "hr"))
 
-				hr := &handlers.HRHandler{DB: db}
 				r.Post("/departments", hr.CreateDepartment)
 				r.Get("/departments", hr.ListDepartments)
 

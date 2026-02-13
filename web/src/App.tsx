@@ -13,6 +13,7 @@ import { RequireAuth } from "./components/require-auth";
 import { AuthLayout } from "./components/auth-layout";
 import { LandingPage } from "./pages/LandingPage";
 import { RequireRoles } from "./components/require-roles";
+import { TimeClockPage } from "./pages/TimeClockPage";
 
 function App() {
   return (
@@ -50,15 +51,16 @@ function App() {
               <Route
                 path="/dashboard"
                 element={
-                  <RequireRoles roles={["owner", "finance"]} fallback="/hr">
+                  <RequireRoles roles={["owner", "finance"]} fallback="/ponto">
                     <DashboardPage />
                   </RequireRoles>
                 }
               />
+              <Route path="/ponto" element={<TimeClockPage />} />
               <Route
                 path="/hr"
                 element={
-                  <RequireRoles roles={["owner", "hr"]} fallback="/dashboard">
+                  <RequireRoles roles={["owner", "hr"]} fallback="/ponto">
                     <HRPage />
                   </RequireRoles>
                 }
@@ -66,7 +68,7 @@ function App() {
               <Route
                 path="/finance/ap"
                 element={
-                  <RequireRoles roles={["owner", "finance"]} fallback="/hr">
+                  <RequireRoles roles={["owner", "finance"]} fallback="/ponto">
                     <FinanceAPPage />
                   </RequireRoles>
                 }
@@ -74,7 +76,7 @@ function App() {
               <Route
                 path="/finance/ar"
                 element={
-                  <RequireRoles roles={["owner", "finance"]} fallback="/hr">
+                  <RequireRoles roles={["owner", "finance"]} fallback="/ponto">
                     <FinanceARPage />
                   </RequireRoles>
                 }
@@ -82,7 +84,7 @@ function App() {
               <Route
                 path="/members"
                 element={
-                  <RequireRoles roles={["owner"]} fallback="/dashboard">
+                  <RequireRoles roles={["owner"]} fallback="/ponto">
                     <MembersPage />
                   </RequireRoles>
                 }

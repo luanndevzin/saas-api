@@ -8,6 +8,7 @@ import { useToast } from "./toast";
 import { cn } from "../lib/utils";
 import {
   Briefcase,
+  Clock3,
   LayoutDashboard,
   Receipt,
   ShieldCheck,
@@ -56,6 +57,14 @@ const navItems: NavItem[] = [
     section: "Pessoas",
     description: "Estrutura, colaboradores e beneficios",
     roles: ["owner", "hr"],
+  },
+  {
+    label: "Meu Ponto",
+    to: "/ponto",
+    icon: <Clock3 className="h-4 w-4" />,
+    section: "Pessoas",
+    description: "Bater entrada e saida e ver historico",
+    roles: ["owner", "hr", "finance", "member"],
   },
   {
     label: "Members",
@@ -118,7 +127,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <div className="text-xl font-bold text-primary">Finance + HR</div>
               <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                 <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                {me ? `Tenant ${me.tenantId} · ${me.role}` : "Sessao anonima"}
+                {me ? `Tenant ${me.tenantId} - ${me.role}` : "Sessao anonima"}
               </div>
             </div>
           </div>
