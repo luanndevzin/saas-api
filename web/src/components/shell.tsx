@@ -1,11 +1,22 @@
-import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { ReactNode, useMemo, useState } from "react";
-import { Button } from "./ui/button";
-import { Card } from "./ui/card";
-import { Badge } from "./ui/badge";
-import { useApi } from "../lib/api-provider";
-import { useToast } from "./toast";
-import { cn } from "../lib/utils";
+import { NavLink as RouterNavLink, useLocation, useNavigate } from "react-router-dom";
+import { useDisclosure } from "@mantine/hooks";
+import {
+  ActionIcon,
+  AppShell,
+  Badge,
+  Box,
+  Burger,
+  Button,
+  Card,
+  Divider,
+  Group,
+  NavLink as MantineNavLink,
+  ScrollArea,
+  Stack,
+  Text,
+  ThemeIcon,
+} from "@mantine/core";
 import {
   Briefcase,
   ChevronDown,
@@ -13,13 +24,16 @@ import {
   Clock3,
   Headset,
   LayoutDashboard,
+  LogOut,
   MoonStar,
-  Plus,
+  PlugZap,
   Receipt,
   ShieldCheck,
   Users,
   Wallet,
 } from "lucide-react";
+import { useApi } from "../lib/api-provider";
+import { useToast } from "./toast";
 
 interface NavItem {
   label: string;
@@ -106,6 +120,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const { baseUrl, me, logout, request, token } = useApi();
   const { toast } = useToast();
   const [checking, setChecking] = useState(false);
+  const [mobileOpened, { toggle, close }] = useDisclosure(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -154,165 +169,155 @@ export function Shell({ children }: { children: ReactNode }) {
     navigate("/dashboard");
   };
 
+  const handleLogout = () => {
+    close();
+    logout();
+  };
+
   return (
-    <div className="h-screen overflow-hidden bg-background/95">
-      <div className="h-full lg:pl-[326px]">
-        <aside className="fixed inset-y-4 left-4 z-30 hidden w-[300px] lg:block">
-          <Card className="sidebar-shell flex h-full flex-col overflow-hidden rounded-[28px] border-border/70 bg-card/95 p-0">
-            <div className="border-b border-border/70 px-4 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/40 text-sm font-bold text-primary-foreground">
-                  {me ? `T${me.tenantId}` : "SC"}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1 text-sm font-semibold text-foreground">
-                    {me ? `Tenant ${me.tenantId}` : "SaaS Control"}
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <CircleDot className="h-3.5 w-3.5 fill-emerald-500 text-emerald-500" />
-                    {roleLabel(me?.role)}
-                  </div>
-                </div>
-                <Button size="icon" variant="outline" className="h-9 w-9 rounded-full border-border/80">
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+    <AppShell
+      padding="md"
+      layout="alt"
+      header={{ height: 72 }}
+      navbar={{
+        width: 320,
+        breakpoint: "md",
+        collapsed: { mobile: !mobileOpened },
+      }}
+    >
+      <AppShell.Header>
+        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap">
+            <Burger opened={mobileOpened} onClick={toggle} hiddenFrom="md" size="sm" />
+            <ThemeIcon size={34} radius="xl" variant="gradient" gradient={{ from: "cyan", to: "blue" }}>
+              <ShieldCheck className="h-4 w-4" />
+            </ThemeIcon>
+            <Box>
+              <Text fw={700} size="sm">
+                {activeItem?.label || "SaaS Control"}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {activeItem?.description || "Navegacao principal"}
+              </Text>
+            </Box>
+          </Group>
 
-            <div className="flex-1 px-3 py-3">
-              {Object.entries(groupedNav).map(([section, items]) => (
-                <div key={section} className="mb-3 rounded-xl border border-border/60 bg-background/35 p-2 last:mb-0">
-                  <div className="mb-1.5 flex items-center justify-between px-1.5">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{section}</div>
-                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                  <nav className="space-y-1">
-                    {items.map((item) => {
-                      const active = pathMatches(location.pathname, item.to);
-                      return (
-                        <NavLink
-                          key={item.to}
-                          to={item.to}
-                          className={cn(
-                            "block rounded-lg px-2.5 py-2 transition",
-                            active
-                              ? "border border-primary/40 bg-primary/18 text-foreground"
-                              : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-                          )}
-                        >
-                          <div className="flex items-center justify-between gap-2 text-sm font-semibold">
-                            <span className="flex items-center gap-2.5">
-                              {item.icon}
-                              {item.label}
-                            </span>
-                            {active && <span className="h-2.5 w-2.5 rounded-full bg-primary" />}
-                          </div>
-                        </NavLink>
-                      );
-                    })}
-                  </nav>
-                </div>
-              ))}
-            </div>
-
-            <div className="space-y-3 border-t border-border/70 p-3">
-              <Card className="space-y-2 border-border/70 bg-background/60 p-3">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Conexao API</span>
-                  <ShieldCheck className="h-4 w-4 text-primary" />
-                </div>
-                <div className="truncate text-xs text-foreground">{baseUrl}</div>
-                <div className="flex gap-2">
-                  <Button size="sm" className="flex-1" onClick={goPrimaryAction}>
-                    Abrir modulo
-                  </Button>
-                  <Button size="sm" variant="outline" className="flex-1" onClick={handleHealth} disabled={checking}>
-                    {checking ? "..." : "Check"}
-                  </Button>
-                </div>
-              </Card>
-              <div className="flex items-center justify-between rounded-xl border border-border/70 bg-background/50 px-3 py-2 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <Headset className="h-4 w-4" /> Suporte
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <MoonStar className="h-4 w-4" /> Dark
-                </span>
-              </div>
-            </div>
-          </Card>
-        </aside>
-
-        <div className="flex h-full min-h-0 flex-col px-2 pb-4 pt-3 lg:px-6 lg:pt-4">
-          <header className="rounded-2xl border border-border/60 bg-card/80 backdrop-blur">
-            <div className="px-4 py-3">
-              <div className="flex flex-wrap items-start gap-3">
-                <div className="space-y-0.5">
-                  <div className="text-xs uppercase tracking-[0.12em] text-muted-foreground">{activeItem?.section || "Painel"}</div>
-                  <div className="text-lg font-bold text-foreground">{activeItem?.label || "SaaS Control Panel"}</div>
-                  <div className="text-xs text-muted-foreground">{activeItem?.description || "Navegacao principal do tenant"}</div>
-                </div>
-
-                <div className="ml-auto flex flex-wrap items-center gap-2 text-xs">
-                  {me && <Badge variant="outline">Tenant {me.tenantId}</Badge>}
-                  {token ? <Badge variant="success">Token ativo</Badge> : <Badge variant="warning">Sem token</Badge>}
-                  {me && <Badge variant="ghost">{roleLabel(me.role)}</Badge>}
-                  {me ? (
-                    <Button size="sm" variant="ghost" onClick={logout}>
-                      Sair
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="ghost" onClick={() => navigate("/login")}>
-                      Entrar
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:hidden">
-                {filteredNav.map((item) => {
-                  const active = pathMatches(location.pathname, item.to);
-                  return (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      className={cn(
-                        "inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition",
-                        active
-                          ? "border-primary/40 bg-primary/20 text-foreground"
-                          : "border-border/70 text-muted-foreground hover:bg-muted/70",
-                      )}
-                    >
-                      {item.icon}
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          </header>
-
-          <main className="container mt-4 flex-1 overflow-y-auto pb-6">
-            {token ? null : (
-              <Card className="mb-5 border-dashed border-primary/40 bg-primary/5 text-sm text-muted-foreground">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>Use Login ou Registro para obter token e acesso completo.</div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={() => navigate("/login")} variant="default">
-                      Ir para Login
-                    </Button>
-                    <Button size="sm" onClick={() => navigate("/register")} variant="outline">
-                      Registrar
-                    </Button>
-                  </div>
-                </div>
-              </Card>
+          <Group gap="xs" wrap="nowrap">
+            {me && <Badge variant="outline">Tenant {me.tenantId}</Badge>}
+            {token ? <Badge color="teal">Token ativo</Badge> : <Badge color="yellow">Sem token</Badge>}
+            {me && <Badge color="gray">{roleLabel(me.role)}</Badge>}
+            {me ? (
+              <ActionIcon variant="light" color="red" onClick={handleLogout} title="Sair">
+                <LogOut className="h-4 w-4" />
+              </ActionIcon>
+            ) : (
+              <Button size="xs" variant="light" onClick={() => navigate("/login")}>Entrar</Button>
             )}
-            {children}
-          </main>
+          </Group>
+        </Group>
+      </AppShell.Header>
+
+      <AppShell.Navbar p="sm">
+        <AppShell.Section>
+          <Card withBorder radius="md" p="sm" bg="dark.6">
+            <Group justify="space-between" wrap="nowrap">
+              <Group gap="sm" wrap="nowrap">
+                <ThemeIcon size={34} radius="xl" variant="gradient" gradient={{ from: "cyan", to: "blue" }}>
+                  <Text fw={700} size="xs">{me ? `T${me.tenantId}` : "SC"}</Text>
+                </ThemeIcon>
+                <Box>
+                  <Text size="sm" fw={700}>{me ? `Tenant ${me.tenantId}` : "Workspace"}</Text>
+                  <Group gap={4} align="center">
+                    <CircleDot className="h-3 w-3 text-emerald-500 fill-emerald-500" />
+                    <Text size="xs" c="dimmed">{roleLabel(me?.role)}</Text>
+                  </Group>
+                </Box>
+              </Group>
+              <ActionIcon variant="subtle" color="gray">
+                <ChevronDown className="h-4 w-4" />
+              </ActionIcon>
+            </Group>
+          </Card>
+        </AppShell.Section>
+
+        <AppShell.Section grow component={ScrollArea} mt="md">
+          <Stack gap="sm" pr={4}>
+            {Object.entries(groupedNav).map(([section, items]) => (
+              <Box key={section}>
+                <Group justify="space-between" mb={6} px={4}>
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">{section}</Text>
+                  <ChevronDown className="h-3 w-3 text-gray-400" />
+                </Group>
+                <Stack gap={4}>
+                  {items.map((item) => {
+                    const active = pathMatches(location.pathname, item.to);
+                    return (
+                      <MantineNavLink
+                        key={item.to}
+                        component={RouterNavLink}
+                        to={item.to}
+                        onClick={close}
+                        variant={active ? "filled" : "subtle"}
+                        color={active ? "cyan" : "gray"}
+                        label={item.label}
+                        description={item.description}
+                        leftSection={item.icon}
+                        active={active}
+                        styles={{
+                          root: {
+                            borderRadius: 10,
+                          },
+                          description: {
+                            lineHeight: 1.2,
+                            opacity: 0.8,
+                          },
+                        }}
+                      />
+                    );
+                  })}
+                </Stack>
+              </Box>
+            ))}
+          </Stack>
+        </AppShell.Section>
+
+        <AppShell.Section>
+          <Divider my="xs" />
+          <Card withBorder radius="md" p="sm" bg="dark.6" mb="sm">
+            <Group justify="space-between" mb={8}>
+              <Text size="xs" c="dimmed">Conexao API</Text>
+              <PlugZap className="h-4 w-4 text-cyan-400" />
+            </Group>
+            <Text size="xs" truncate mb="sm">{baseUrl}</Text>
+            <Group grow>
+              <Button size="xs" onClick={goPrimaryAction}>Abrir modulo</Button>
+              <Button size="xs" variant="outline" onClick={handleHealth} loading={checking}>Check</Button>
+            </Group>
+          </Card>
+
+          <Group justify="space-between" px={4}>
+            <Group gap={6}><Headset className="h-4 w-4" /><Text size="xs" c="dimmed">Suporte</Text></Group>
+            <Group gap={6}><MoonStar className="h-4 w-4" /><Text size="xs" c="dimmed">Dark</Text></Group>
+          </Group>
+        </AppShell.Section>
+      </AppShell.Navbar>
+
+      <AppShell.Main>
+        <div className="container h-[calc(100vh-96px)] overflow-y-auto py-2 md:py-4">
+          {!token && (
+            <Card withBorder radius="md" p="md" mb="md" bg="dark.6">
+              <Group justify="space-between">
+                <Text size="sm" c="dimmed">Use Login ou Registro para obter token e acesso completo.</Text>
+                <Group>
+                  <Button size="xs" onClick={() => navigate("/login")}>Ir para Login</Button>
+                  <Button size="xs" variant="outline" onClick={() => navigate("/register")}>Registrar</Button>
+                </Group>
+              </Group>
+            </Card>
+          )}
+          {children}
         </div>
-      </div>
-    </div>
+      </AppShell.Main>
+    </AppShell>
   );
 }
