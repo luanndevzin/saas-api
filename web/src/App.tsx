@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
-import { ApiProvider } from "./lib/api-provider";
+import { ApiProvider, useApi } from "./lib/api-provider";
 import { ToastProvider } from "./components/toast";
 import { Shell } from "./components/shell";
 import { LoginPage } from "./pages/LoginPage";
@@ -14,6 +14,25 @@ import { AuthLayout } from "./components/auth-layout";
 import { LandingPage } from "./pages/LandingPage";
 import { RequireRoles } from "./components/require-roles";
 import { TimeClockPage } from "./pages/TimeClockPage";
+
+function RoleHomeRedirect() {
+  const { me } = useApi();
+  const role = me?.role;
+
+  switch (role) {
+    case "owner":
+      return <Navigate to="/dashboard" replace />;
+    case "finance":
+      return <Navigate to="/finance/ap" replace />;
+    case "hr":
+      return <Navigate to="/hr" replace />;
+    case "colaborador":
+    case "member":
+      return <Navigate to="/ponto" replace />;
+    default:
+      return <Navigate to="/dashboard" replace />;
+  }
+}
 
 function App() {
   return (
@@ -48,19 +67,27 @@ function App() {
                 </RequireAuth>
               }
             >
+              <Route path="/app" element={<RoleHomeRedirect />} />
               <Route
                 path="/dashboard"
                 element={
-                  <RequireRoles roles={["owner", "finance"]} fallback="/ponto">
+                  <RequireRoles roles={["owner", "finance"]} fallback="/app">
                     <DashboardPage />
                   </RequireRoles>
                 }
               />
-              <Route path="/ponto" element={<TimeClockPage />} />
+              <Route
+                path="/ponto"
+                element={
+                  <RequireRoles roles={["colaborador", "member"]} fallback="/app">
+                    <TimeClockPage />
+                  </RequireRoles>
+                }
+              />
               <Route
                 path="/hr"
                 element={
-                  <RequireRoles roles={["owner", "hr"]} fallback="/ponto">
+                  <RequireRoles roles={["owner", "hr"]} fallback="/app">
                     <HRPage />
                   </RequireRoles>
                 }
@@ -68,7 +95,7 @@ function App() {
               <Route
                 path="/finance/ap"
                 element={
-                  <RequireRoles roles={["owner", "finance"]} fallback="/ponto">
+                  <RequireRoles roles={["owner", "finance"]} fallback="/app">
                     <FinanceAPPage />
                   </RequireRoles>
                 }
@@ -76,7 +103,7 @@ function App() {
               <Route
                 path="/finance/ar"
                 element={
-                  <RequireRoles roles={["owner", "finance"]} fallback="/ponto">
+                  <RequireRoles roles={["owner", "finance"]} fallback="/app">
                     <FinanceARPage />
                   </RequireRoles>
                 }
@@ -84,7 +111,7 @@ function App() {
               <Route
                 path="/members"
                 element={
-                  <RequireRoles roles={["owner"]} fallback="/ponto">
+                  <RequireRoles roles={["owner"]} fallback="/app">
                     <MembersPage />
                   </RequireRoles>
                 }
