@@ -45,7 +45,7 @@ interface NavItem {
     label: string;
     to: string;
     description?: string;
-    tab?: "estrutura" | "colaboradores" | "folgas" | "ponto";
+    tab?: "estrutura" | "colaboradores" | "folgas" | "ponto" | "banco";
   }>;
 }
 
@@ -86,6 +86,7 @@ const navItems: NavItem[] = [
       { label: "Colaboradores", to: "/hr?secao=colaboradores", tab: "colaboradores" },
       { label: "Folgas e beneficios", to: "/hr?secao=folgas", tab: "folgas" },
       { label: "Ponto (Clockify)", to: "/hr?secao=ponto", tab: "ponto" },
+      { label: "Banco de horas", to: "/hr?secao=banco", tab: "banco" },
     ],
   },
   {
@@ -112,9 +113,9 @@ function pathMatches(pathname: string, to: string) {
   return pathname === targetPath || pathname.startsWith(`${targetPath}/`);
 }
 
-function readHRSection(search: string): "estrutura" | "colaboradores" | "folgas" | "ponto" {
+function readHRSection(search: string): "estrutura" | "colaboradores" | "folgas" | "ponto" | "banco" {
   const value = new URLSearchParams(search).get("secao");
-  if (value === "colaboradores" || value === "folgas" || value === "ponto") return value;
+  if (value === "colaboradores" || value === "folgas" || value === "ponto" || value === "banco") return value;
   return "estrutura";
 }
 

@@ -15,6 +15,10 @@ import {
   Location,
   Position,
   Team,
+  TimeBankAdjustment,
+  TimeBankClosure,
+  TimeBankSettings,
+  TimeBankSummary,
   TimeOffRequest,
   TimeOffType,
 } from "../lib/api";
@@ -30,7 +34,7 @@ import { Textarea } from "../components/ui/textarea";
 import { formatCents, formatDate, formatDateTime } from "../lib/utils";
 import { PageHeader } from "../components/page-header";
 
-type Tab = "estrutura" | "colaboradores" | "folgas" | "ponto";
+type Tab = "estrutura" | "colaboradores" | "folgas" | "ponto" | "banco";
 
 const statusColors: Record<string, "default" | "success" | "warning" | "outline"> = {
   active: "success",
@@ -52,7 +56,7 @@ const numOrNull = (v: FormDataEntryValue | null) => {
 };
 
 const isTab = (value: string | null): value is Tab =>
-  value === "estrutura" || value === "colaboradores" || value === "folgas" || value === "ponto";
+  value === "estrutura" || value === "colaboradores" || value === "folgas" || value === "ponto" || value === "banco";
 
 const defaultClockifyStatus: ClockifyStatus = {
   configured: false,
@@ -63,6 +67,25 @@ const defaultClockifyStatus: ClockifyStatus = {
   mapped_employees: 0,
   active_unmapped_employees: 0,
   unmapped_employees_preview: [],
+};
+
+const defaultTimeBankSettings: TimeBankSettings = {
+  target_daily_minutes: 480,
+  include_saturday: false,
+};
+
+const defaultTimeBankSummary: TimeBankSummary = {
+  start_date: "",
+  end_date: "",
+  target_daily_minutes: 480,
+  include_saturday: false,
+  employees: [],
+  totals: {
+    worked_seconds: 0,
+    expected_seconds: 0,
+    adjustment_seconds: 0,
+    balance_seconds: 0,
+  },
 };
 
 export function HRPage() {
@@ -85,12 +108,21 @@ export function HRPage() {
   const [clockifyStatus, setClockifyStatus] = useState<ClockifyStatus>(defaultClockifyStatus);
   const [timeEntries, setTimeEntries] = useState<HRTimeEntry[]>([]);
   const [clockifySyncResult, setClockifySyncResult] = useState<ClockifySyncResult | null>(null);
+  const [timeBankSettings, setTimeBankSettings] = useState<TimeBankSettings>(defaultTimeBankSettings);
+  const [timeBankSummary, setTimeBankSummary] = useState<TimeBankSummary>(defaultTimeBankSummary);
+  const [timeBankAdjustments, setTimeBankAdjustments] = useState<TimeBankAdjustment[]>([]);
+  const [timeBankClosures, setTimeBankClosures] = useState<TimeBankClosure[]>([]);
 
   const tabParam = searchParams.get("secao");
   const tab: Tab = isTab(tabParam) ? tabParam : "estrutura";
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [savingClockify, setSavingClockify] = useState(false);
   const [syncingClockify, setSyncingClockify] = useState(false);
+  const [savingTimeBankSettings, setSavingTimeBankSettings] = useState(false);
+  const [loadingTimeBankSummary, setLoadingTimeBankSummary] = useState(false);
+  const [savingTimeBankAdjustment, setSavingTimeBankAdjustment] = useState(false);
+  const [closingTimeBankPeriod, setClosingTimeBankPeriod] = useState(false);
+  const [reopeningClosureId, setReopeningClosureId] = useState<number | null>(null);
   const [creatingEmployeeAccount, setCreatingEmployeeAccount] = useState(false);
   const [entriesFilterStart, setEntriesFilterStart] = useState(() => {
     const now = new Date();
@@ -100,6 +132,12 @@ export function HRPage() {
   const [entriesFilterEnd, setEntriesFilterEnd] = useState(() => {
     return new Date().toISOString().slice(0, 10);
   });
+  const [timeBankStartDate, setTimeBankStartDate] = useState(() => {
+    const now = new Date();
+    const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    return first.toISOString().slice(0, 10);
+  });
+  const [timeBankEndDate, setTimeBankEndDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const deptMap = useMemo(() => Object.fromEntries(departments.map((d) => [d.id, d.name])), [departments]);
   const posMap = useMemo(() => Object.fromEntries(positions.map((p) => [p.id, p.title])), [positions]);
@@ -201,6 +239,161 @@ export function HRPage() {
     }
   };
 
+  const loadTimeBankSettings = async () => {
+    try {
+      const data = await request<TimeBankSettings>("/time-bank/settings");
+      setTimeBankSettings(data || defaultTimeBankSettings);
+    } catch (err: any) {
+      toast({ title: "Erro ao carregar configuracao de banco de horas", description: err.message, variant: "error" });
+    }
+  };
+
+  const loadTimeBankSummary = async (startDate = timeBankStartDate, endDate = timeBankEndDate) => {
+    setLoadingTimeBankSummary(true);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("start_date", startDate);
+      if (endDate) params.set("end_date", endDate);
+      const data = await request<TimeBankSummary>(`/time-bank/summary?${params.toString()}`);
+      setTimeBankSummary(data || defaultTimeBankSummary);
+    } catch (err: any) {
+      toast({ title: "Erro ao carregar resumo de banco de horas", description: err.message, variant: "error" });
+    } finally {
+      setLoadingTimeBankSummary(false);
+    }
+  };
+
+  const loadTimeBankAdjustments = async (startDate = timeBankStartDate, endDate = timeBankEndDate) => {
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("start_date", startDate);
+      if (endDate) params.set("end_date", endDate);
+      params.set("limit", "200");
+      const data = await request<TimeBankAdjustment[]>(`/time-bank/adjustments?${params.toString()}`);
+      setTimeBankAdjustments(toArray(data));
+    } catch (err: any) {
+      toast({ title: "Erro ao carregar ajustes de banco de horas", description: err.message, variant: "error" });
+    }
+  };
+
+  const loadTimeBankClosures = async () => {
+    try {
+      const data = await request<TimeBankClosure[]>("/time-bank/closures?limit=24");
+      setTimeBankClosures(toArray(data));
+    } catch (err: any) {
+      toast({ title: "Erro ao carregar fechamentos", description: err.message, variant: "error" });
+    }
+  };
+
+  const refreshTimeBank = async (startDate = timeBankStartDate, endDate = timeBankEndDate) => {
+    await Promise.all([
+      loadTimeBankSettings(),
+      loadTimeBankSummary(startDate, endDate),
+      loadTimeBankAdjustments(startDate, endDate),
+      loadTimeBankClosures(),
+    ]);
+  };
+
+  const saveTimeBankSettings = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const targetDailyMinutes = Number(fd.get("target_daily_minutes") || 0);
+    const includeSaturday = (fd.get("include_saturday") || "0").toString() === "1";
+
+    setSavingTimeBankSettings(true);
+    try {
+      await request("/time-bank/settings", {
+        method: "PUT",
+        body: {
+          target_daily_minutes: targetDailyMinutes,
+          include_saturday: includeSaturday,
+        },
+      });
+      toast({ title: "Configuracao de banco de horas salva", variant: "success" });
+      await loadTimeBankSettings();
+      await loadTimeBankSummary(timeBankStartDate, timeBankEndDate);
+    } catch (err: any) {
+      toast({ title: "Erro ao salvar configuracao", description: err.message, variant: "error" });
+    } finally {
+      setSavingTimeBankSettings(false);
+    }
+  };
+
+  const createTimeBankAdjustment = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const employeeId = Number(fd.get("employee_id") || 0);
+    const effectiveDate = (fd.get("effective_date") || "").toString();
+    const minutesDelta = Number(fd.get("minutes_delta") || 0);
+    const reason = (fd.get("reason") || "").toString().trim();
+
+    setSavingTimeBankAdjustment(true);
+    try {
+      await request("/time-bank/adjustments", {
+        method: "POST",
+        body: {
+          employee_id: employeeId,
+          effective_date: effectiveDate,
+          minutes_delta: minutesDelta,
+          reason: reason || null,
+        },
+      });
+      toast({ title: "Ajuste de banco de horas criado", variant: "success" });
+      e.currentTarget.reset();
+      await loadTimeBankSummary(timeBankStartDate, timeBankEndDate);
+      await loadTimeBankAdjustments(timeBankStartDate, timeBankEndDate);
+      await loadTimeBankClosures();
+    } catch (err: any) {
+      toast({ title: "Erro ao criar ajuste", description: err.message, variant: "error" });
+    } finally {
+      setSavingTimeBankAdjustment(false);
+    }
+  };
+
+  const closeTimeBankPeriod = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const startDate = (fd.get("start_date") || "").toString();
+    const endDate = (fd.get("end_date") || "").toString();
+    const note = (fd.get("note") || "").toString().trim();
+
+    setClosingTimeBankPeriod(true);
+    try {
+      await request("/time-bank/closures/close", {
+        method: "POST",
+        body: {
+          start_date: startDate,
+          end_date: endDate,
+          note: note || null,
+        },
+      });
+      toast({ title: "Periodo fechado com sucesso", variant: "success" });
+      await loadTimeBankClosures();
+      await loadTimeBankSummary(timeBankStartDate, timeBankEndDate);
+    } catch (err: any) {
+      toast({ title: "Erro ao fechar periodo", description: err.message, variant: "error" });
+    } finally {
+      setClosingTimeBankPeriod(false);
+    }
+  };
+
+  const reopenTimeBankClosure = async (closureId: number) => {
+    setReopeningClosureId(closureId);
+    try {
+      await request(`/time-bank/closures/${closureId}/reopen`, {
+        method: "POST",
+        body: {},
+      });
+      toast({ title: "Fechamento reaberto", variant: "success" });
+      await loadTimeBankClosures();
+      await loadTimeBankSummary(timeBankStartDate, timeBankEndDate);
+    } catch (err: any) {
+      toast({ title: "Erro ao reabrir fechamento", description: err.message, variant: "error" });
+    } finally {
+      setReopeningClosureId(null);
+    }
+  };
+
   const loadEmployeeExtras = async (id: number) => {
     try {
       const [comps, docs, ben] = await Promise.all([
@@ -224,6 +417,10 @@ export function HRPage() {
     loadClockifyStatus();
     loadTimeEntries();
     loadEmployees();
+    loadTimeBankSettings();
+    loadTimeBankSummary();
+    loadTimeBankAdjustments();
+    loadTimeBankClosures();
   }, []);
 
   useEffect(() => {
@@ -635,6 +832,10 @@ export function HRPage() {
   };
 
   const formatHours = (seconds: number) => `${(seconds / 3600).toFixed(2)} h`;
+  const formatSignedHours = (seconds: number) => {
+    const sign = seconds > 0 ? "+" : "";
+    return `${sign}${(seconds / 3600).toFixed(2)} h`;
+  };
 
   return (
     <div className="space-y-5">
@@ -1149,6 +1350,319 @@ export function HRPage() {
                     <TR>
                       <TD colSpan={6} className="text-center text-sm text-muted-foreground">
                         Nenhuma batida sincronizada para o periodo selecionado.
+                      </TD>
+                    </TR>
+                  )}
+                </TBody>
+              </Table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {tab === "banco" && (
+        <div className="grid gap-4 xl:grid-cols-3">
+          <Card id="form-banco-config">
+            <CardHeader className="mb-2">
+              <CardTitle>Configuracao da jornada</CardTitle>
+              <CardDescription>Defina a carga diaria para calculo do banco de horas.</CardDescription>
+            </CardHeader>
+            <form className="space-y-3 px-4 pb-4" onSubmit={saveTimeBankSettings}>
+              <div>
+                <Label>Minutos por dia</Label>
+                <Input
+                  name="target_daily_minutes"
+                  type="number"
+                  min={1}
+                  max={960}
+                  defaultValue={timeBankSettings.target_daily_minutes}
+                  required
+                />
+              </div>
+              <div>
+                <Label>Contabilizar sabado</Label>
+                <Select name="include_saturday" defaultValue={timeBankSettings.include_saturday ? "1" : "0"}>
+                  <option value="0">Nao</option>
+                  <option value="1">Sim</option>
+                </Select>
+              </div>
+              <Button type="submit" className="w-full" disabled={savingTimeBankSettings}>
+                {savingTimeBankSettings ? "Salvando..." : "Salvar configuracao"}
+              </Button>
+            </form>
+            <div className="px-4 pb-4 text-xs text-muted-foreground">
+              {timeBankSettings.updated_at
+                ? `Ultima atualizacao: ${formatDateTime(timeBankSettings.updated_at)}`
+                : "Usando configuracao padrao de 8h/dia."}
+            </div>
+          </Card>
+
+          <Card id="form-banco-resumo" className="xl:col-span-2">
+            <CardHeader className="mb-2">
+              <CardTitle>Resumo do banco de horas</CardTitle>
+              <CardDescription>Consolidado por colaborador no periodo selecionado.</CardDescription>
+            </CardHeader>
+            <form
+              className="grid grid-cols-1 gap-3 px-4 pb-4 md:grid-cols-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                refreshTimeBank(timeBankStartDate, timeBankEndDate);
+              }}
+            >
+              <div>
+                <Label>Inicio</Label>
+                <Input
+                  type="date"
+                  value={timeBankStartDate}
+                  onChange={(e) => setTimeBankStartDate(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label>Fim</Label>
+                <Input
+                  type="date"
+                  value={timeBankEndDate}
+                  onChange={(e) => setTimeBankEndDate(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="md:col-span-2 flex items-end gap-2">
+                <Button type="submit" className="flex-1" disabled={loadingTimeBankSummary}>
+                  {loadingTimeBankSummary ? "Atualizando..." : "Atualizar resumo"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const now = new Date();
+                    const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+                    const start = first.toISOString().slice(0, 10);
+                    const end = now.toISOString().slice(0, 10);
+                    setTimeBankStartDate(start);
+                    setTimeBankEndDate(end);
+                    refreshTimeBank(start, end);
+                  }}
+                >
+                  Mes atual
+                </Button>
+              </div>
+            </form>
+
+            <div className="grid gap-2 px-4 pb-4 md:grid-cols-4">
+              <div className="rounded border border-border/70 bg-muted/20 px-3 py-2 text-sm">
+                <div className="text-xs text-muted-foreground">Horas trabalhadas</div>
+                <div className="text-lg font-semibold">{formatHours(timeBankSummary.totals.worked_seconds || 0)}</div>
+              </div>
+              <div className="rounded border border-border/70 bg-muted/20 px-3 py-2 text-sm">
+                <div className="text-xs text-muted-foreground">Horas previstas</div>
+                <div className="text-lg font-semibold">{formatHours(timeBankSummary.totals.expected_seconds || 0)}</div>
+              </div>
+              <div className="rounded border border-border/70 bg-muted/20 px-3 py-2 text-sm">
+                <div className="text-xs text-muted-foreground">Ajustes</div>
+                <div className="text-lg font-semibold">{formatSignedHours(timeBankSummary.totals.adjustment_seconds || 0)}</div>
+              </div>
+              <div className="rounded border border-border/70 bg-muted/20 px-3 py-2 text-sm">
+                <div className="text-xs text-muted-foreground">Saldo do periodo</div>
+                <div className={`text-lg font-semibold ${(timeBankSummary.totals.balance_seconds || 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {formatSignedHours(timeBankSummary.totals.balance_seconds || 0)}
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-auto px-4 pb-4">
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>Colaborador</TH>
+                    <TH>Status</TH>
+                    <TH>Trabalhadas</TH>
+                    <TH>Previstas</TH>
+                    <TH>Ajustes</TH>
+                    <TH>Saldo</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {timeBankSummary.employees.map((item) => (
+                    <TR key={item.employee_id}>
+                      <TD>{item.name}</TD>
+                      <TD>
+                        <Badge variant={statusColors[item.status] || "outline"}>{item.status}</Badge>
+                      </TD>
+                      <TD>{formatHours(item.worked_seconds)}</TD>
+                      <TD>{formatHours(item.expected_seconds)}</TD>
+                      <TD>{formatSignedHours(item.adjustment_seconds)}</TD>
+                      <TD>
+                        <span className={item.balance_seconds >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                          {formatSignedHours(item.balance_seconds)}
+                        </span>
+                      </TD>
+                    </TR>
+                  ))}
+                  {timeBankSummary.employees.length === 0 && (
+                    <TR>
+                      <TD colSpan={6} className="text-center text-sm text-muted-foreground">
+                        Nenhum colaborador encontrado para o periodo selecionado.
+                      </TD>
+                    </TR>
+                  )}
+                </TBody>
+              </Table>
+            </div>
+          </Card>
+
+          <Card id="form-banco-ajustes" className="xl:col-span-2">
+            <CardHeader className="mb-2">
+              <CardTitle>Ajustes manuais</CardTitle>
+              <CardDescription>Corrija saldo com acrescimo ou desconto em minutos.</CardDescription>
+            </CardHeader>
+            <form className="grid grid-cols-1 gap-3 px-4 pb-4 md:grid-cols-4" onSubmit={createTimeBankAdjustment}>
+              <div className="md:col-span-2">
+                <Label>Colaborador</Label>
+                <Select name="employee_id" defaultValue="" required>
+                  <option value="" disabled>
+                    Selecione
+                  </option>
+                  {employees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label>Data</Label>
+                <Input name="effective_date" type="date" defaultValue={timeBankEndDate} required />
+              </div>
+              <div>
+                <Label>Minutos (+/-)</Label>
+                <Input name="minutes_delta" type="number" min={-1440} max={1440} required />
+              </div>
+              <div className="md:col-span-4">
+                <Label>Motivo</Label>
+                <Textarea name="reason" rows={2} placeholder="Ex.: ajuste validado pelo RH" />
+              </div>
+              <div className="md:col-span-4">
+                <Button type="submit" className="w-full" disabled={savingTimeBankAdjustment}>
+                  {savingTimeBankAdjustment ? "Salvando ajuste..." : "Registrar ajuste"}
+                </Button>
+              </div>
+            </form>
+
+            <div className="overflow-auto px-4 pb-4">
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>Data</TH>
+                    <TH>Colaborador</TH>
+                    <TH>Ajuste</TH>
+                    <TH>Motivo</TH>
+                    <TH>Criado em</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {timeBankAdjustments.map((item) => (
+                    <TR key={item.id}>
+                      <TD>{formatDate(item.effective_date)}</TD>
+                      <TD>{item.employee_name}</TD>
+                      <TD>
+                        <span className={item.seconds_delta >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                          {formatSignedHours(item.seconds_delta)}
+                        </span>
+                      </TD>
+                      <TD className="max-w-[360px] truncate">{item.reason || "-"}</TD>
+                      <TD>{formatDateTime(item.created_at)}</TD>
+                    </TR>
+                  ))}
+                  {timeBankAdjustments.length === 0 && (
+                    <TR>
+                      <TD colSpan={5} className="text-center text-sm text-muted-foreground">
+                        Nenhum ajuste manual no periodo.
+                      </TD>
+                    </TR>
+                  )}
+                </TBody>
+              </Table>
+            </div>
+          </Card>
+
+          <Card id="form-banco-fechamento">
+            <CardHeader className="mb-2">
+              <CardTitle>Fechamento mensal</CardTitle>
+              <CardDescription>Congele periodo para auditoria e folha.</CardDescription>
+            </CardHeader>
+            <form className="space-y-3 px-4 pb-4" onSubmit={closeTimeBankPeriod}>
+              <div>
+                <Label>Inicio do periodo</Label>
+                <Input name="start_date" type="date" defaultValue={timeBankStartDate} required />
+              </div>
+              <div>
+                <Label>Fim do periodo</Label>
+                <Input name="end_date" type="date" defaultValue={timeBankEndDate} required />
+              </div>
+              <div>
+                <Label>Nota (opcional)</Label>
+                <Textarea name="note" rows={2} placeholder="Ex.: Fechamento da folha de fevereiro" />
+              </div>
+              <Button type="submit" className="w-full" disabled={closingTimeBankPeriod}>
+                {closingTimeBankPeriod ? "Fechando..." : "Fechar periodo"}
+              </Button>
+            </form>
+          </Card>
+
+          <Card id="form-banco-fechamentos" className="xl:col-span-3">
+            <CardHeader className="mb-2">
+              <CardTitle>Historico de fechamentos</CardTitle>
+              <CardDescription>Ultimos periodos fechados e reabertos.</CardDescription>
+            </CardHeader>
+            <div className="overflow-auto px-4 pb-4">
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>Periodo</TH>
+                    <TH>Status</TH>
+                    <TH>Colaboradores</TH>
+                    <TH>Saldo total</TH>
+                    <TH>Fechado em</TH>
+                    <TH />
+                  </TR>
+                </THead>
+                <TBody>
+                  {timeBankClosures.map((closure) => (
+                    <TR key={closure.id}>
+                      <TD>
+                        {formatDate(closure.period_start)} ate {formatDate(closure.period_end)}
+                      </TD>
+                      <TD>
+                        <Badge variant={closure.status === "closed" ? "warning" : "outline"}>
+                          {closure.status === "closed" ? "fechado" : "reaberto"}
+                        </Badge>
+                      </TD>
+                      <TD>{closure.employees_count}</TD>
+                      <TD>
+                        <span className={closure.total_balance_seconds >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                          {formatSignedHours(closure.total_balance_seconds)}
+                        </span>
+                      </TD>
+                      <TD>{formatDateTime(closure.closed_at || closure.created_at)}</TD>
+                      <TD>
+                        {closure.status === "closed" && (
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            onClick={() => reopenTimeBankClosure(closure.id)}
+                            disabled={reopeningClosureId === closure.id}
+                          >
+                            {reopeningClosureId === closure.id ? "Reabrindo..." : "Reabrir"}
+                          </Button>
+                        )}
+                      </TD>
+                    </TR>
+                  ))}
+                  {timeBankClosures.length === 0 && (
+                    <TR>
+                      <TD colSpan={6} className="text-center text-sm text-muted-foreground">
+                        Nenhum fechamento registrado.
                       </TD>
                     </TR>
                   )}

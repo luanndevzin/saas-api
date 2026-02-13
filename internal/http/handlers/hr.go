@@ -1671,6 +1671,36 @@ func localizeHRMessage(msg string) string {
 		return "Clockify retornou erro ao processar a requisicao"
 	case "clockify connection failed":
 		return "nao foi possivel conectar no Clockify"
+	case "target_daily_minutes must be between 1 and 960":
+		return "target_daily_minutes deve ficar entre 1 e 960 minutos"
+	case "seconds_delta or minutes_delta is required":
+		return "informe seconds_delta ou minutes_delta"
+	case "seconds_delta and minutes_delta cannot be used together":
+		return "use apenas seconds_delta ou minutes_delta, nao os dois"
+	case "delta must be non-zero":
+		return "o ajuste nao pode ser zero"
+	case "could not create time bank adjustment":
+		return "nao foi possivel criar ajuste de banco de horas"
+	case "period is closed for this date":
+		return "o periodo desta data esta fechado"
+	case "period_start is required":
+		return "period_start e obrigatorio"
+	case "period_end is required":
+		return "period_end e obrigatorio"
+	case "period_start must be YYYY-MM-DD":
+		return "period_start deve estar no formato YYYY-MM-DD"
+	case "period_end must be YYYY-MM-DD":
+		return "period_end deve estar no formato YYYY-MM-DD"
+	case "period_end must be >= period_start":
+		return "period_end deve ser maior ou igual a period_start"
+	case "another closed period overlaps selected range":
+		return "ja existe periodo fechado que se sobrepoe ao intervalo selecionado"
+	case "could not close time bank period":
+		return "nao foi possivel fechar o periodo do banco de horas"
+	case "time bank closure not found":
+		return "fechamento de banco de horas nao encontrado"
+	case "could not reopen time bank period":
+		return "nao foi possivel reabrir o fechamento do banco de horas"
 	default:
 		return msg
 	}

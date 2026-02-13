@@ -108,6 +108,15 @@ func NewRouter(db *sqlx.DB, log zerolog.Logger, jwtSecret []byte, jwtIssuer stri
 				r.Post("/integrations/clockify", hr.UpsertClockifyConfig)
 				r.Post("/integrations/clockify/sync", hr.SyncClockifyEntries)
 				r.Get("/time-entries", hr.ListTimeEntries)
+
+				r.Get("/time-bank/settings", hr.GetTimeBankSettings)
+				r.Put("/time-bank/settings", hr.UpsertTimeBankSettings)
+				r.Get("/time-bank/summary", hr.GetTimeBankSummary)
+				r.Get("/time-bank/adjustments", hr.ListTimeBankAdjustments)
+				r.Post("/time-bank/adjustments", hr.CreateTimeBankAdjustment)
+				r.Get("/time-bank/closures", hr.ListTimeBankClosures)
+				r.Post("/time-bank/closures/close", hr.CloseTimeBankPeriod)
+				r.Post("/time-bank/closures/{id}/reopen", hr.ReopenTimeBankClosure)
 			})
 
 			// RH-only: provisionar conta de colaborador vinculada ao cadastro de funcionario

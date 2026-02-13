@@ -198,6 +198,70 @@ export interface HRTimeEntry {
   updated_at?: string;
 }
 
+export interface TimeBankSettings {
+  target_daily_minutes: number;
+  include_saturday: boolean;
+  updated_at?: string;
+}
+
+export interface TimeBankEmployeeSummary {
+  employee_id: number;
+  name: string;
+  status: string;
+  hire_date?: string | null;
+  termination_date?: string | null;
+  worked_seconds: number;
+  expected_seconds: number;
+  adjustment_seconds: number;
+  balance_seconds: number;
+}
+
+export interface TimeBankSummary {
+  start_date: string;
+  end_date: string;
+  target_daily_minutes: number;
+  include_saturday: boolean;
+  employees: TimeBankEmployeeSummary[];
+  totals: {
+    worked_seconds: number;
+    expected_seconds: number;
+    adjustment_seconds: number;
+    balance_seconds: number;
+  };
+}
+
+export interface TimeBankAdjustment {
+  id: number;
+  tenant_id: number;
+  employee_id: number;
+  employee_name: string;
+  effective_date: string;
+  seconds_delta: number;
+  reason?: string | null;
+  created_by?: number | null;
+  created_at: string;
+}
+
+export interface TimeBankClosure {
+  id: number;
+  tenant_id: number;
+  period_start: string;
+  period_end: string;
+  status: "closed" | "reopened" | string;
+  note?: string | null;
+  closed_at?: string | null;
+  closed_by?: number | null;
+  reopened_at?: string | null;
+  reopened_by?: number | null;
+  created_at: string;
+  updated_at: string;
+  employees_count: number;
+  total_worked_seconds: number;
+  total_expected_seconds: number;
+  total_adjustment_seconds: number;
+  total_balance_seconds: number;
+}
+
 export interface MyTimeEntries {
   employee_id: number;
   employee_name: string;
@@ -327,6 +391,18 @@ function translateApiMessage(status: number, data: any) {
     [/employee email is required/i, "Defina um email no colaborador antes de criar o acesso."],
     [/you already have an open time entry/i, "Ja existe uma batida em aberto."],
     [/no open time entry found/i, "Nao ha batida em aberto para encerrar."],
+    [/target_daily_minutes must be between 1 and 960/i, "A carga diaria deve ficar entre 1 e 960 minutos."],
+    [/seconds_delta or minutes_delta is required/i, "Informe seconds_delta ou minutes_delta."],
+    [/seconds_delta and minutes_delta cannot be used together/i, "Use seconds_delta ou minutes_delta, nao ambos."],
+    [/delta must be non-zero/i, "O ajuste precisa ser diferente de zero."],
+    [/period is closed for this date/i, "Este dia pertence a um periodo fechado."],
+    [/period_start is required/i, "period_start e obrigatorio."],
+    [/period_end is required/i, "period_end e obrigatorio."],
+    [/period_start must be yyyy-mm-dd/i, "period_start deve estar em YYYY-MM-DD."],
+    [/period_end must be yyyy-mm-dd/i, "period_end deve estar em YYYY-MM-DD."],
+    [/period_end must be >= period_start/i, "period_end deve ser maior ou igual a period_start."],
+    [/another closed period overlaps selected range/i, "Ja existe fechamento sobrepondo esse periodo."],
+    [/time bank closure not found/i, "Fechamento de banco de horas nao encontrado."],
     [/colaborador role must be provisioned by hr/i, "Role colaborador so pode ser provisionada pelo RH."],
     [/user already has elevated role/i, "Este usuario ja possui perfil administrativo neste tenant."],
     [/user already linked to another employee/i, "Este usuario ja esta vinculado a outro colaborador."],
