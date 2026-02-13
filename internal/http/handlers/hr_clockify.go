@@ -23,6 +23,13 @@ const (
 	clockifyBaseURL         = "https://api.clockify.me/api/v1"
 	defaultTimeEntriesLimit = 200
 	maxTimeEntriesLimit     = 1000
+	clockifyRequestAttempts = 3
+	statusUnmappedLimit     = 20
+)
+
+const (
+	clockifyRetryBaseDelay = 750 * time.Millisecond
+	clockifyRetryMaxDelay  = 6 * time.Second
 )
 
 var (
@@ -64,6 +71,28 @@ type clockifySyncResp struct {
 	EntriesUpserted  int       `json:"entries_upserted"`
 	RunningEntries   int       `json:"running_entries"`
 	SyncedAt         time.Time `json:"synced_at"`
+}
+
+type clockifyStatusResp struct {
+	Configured               bool                      `json:"configured"`
+	WorkspaceID              string                    `json:"workspace_id,omitempty"`
+	APIKeyMasked             string                    `json:"api_key_masked,omitempty"`
+	LastSyncAt               *time.Time                `json:"last_sync_at,omitempty"`
+	LastEntryStartAt         *time.Time                `json:"last_entry_start_at,omitempty"`
+	LastEntryEndAt           *time.Time                `json:"last_entry_end_at,omitempty"`
+	EntriesTotal             int64                     `json:"entries_total"`
+	EntriesLast7Days         int64                     `json:"entries_last_7_days"`
+	EntriesRunning           int64                     `json:"entries_running"`
+	ActiveEmployees          int64                     `json:"active_employees"`
+	MappedEmployees          int64                     `json:"mapped_employees"`
+	ActiveUnmappedEmployees  int64                     `json:"active_unmapped_employees"`
+	UnmappedEmployeesPreview []clockifyUnmappedPreview `json:"unmapped_employees_preview"`
+}
+
+type clockifyUnmappedPreview struct {
+	EmployeeID uint64 `db:"employee_id" json:"employee_id"`
+	Name       string `db:"name" json:"name"`
+	Email      string `db:"email" json:"email"`
 }
 
 type clockifyTenantConnection struct {
@@ -155,6 +184,10 @@ type clockifyClient struct {
 	baseURL string
 	apiKey  string
 	client  *http.Client
+
+	maxAttempts int
+	baseDelay   time.Duration
+	maxDelay    time.Duration
 }
 
 func newClockifyClient(apiKey string) *clockifyClient {
@@ -164,6 +197,9 @@ func newClockifyClient(apiKey string) *clockifyClient {
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		maxAttempts: clockifyRequestAttempts,
+		baseDelay:   clockifyRetryBaseDelay,
+		maxDelay:    clockifyRetryMaxDelay,
 	}
 }
 
@@ -176,34 +212,126 @@ func (c *clockifyClient) getJSON(ctx context.Context, path string, query url.Val
 		u.RawQuery = query.Encode()
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return err
+	if c.maxAttempts < 1 {
+		c.maxAttempts = 1
 	}
-	req.Header.Set("X-Api-Key", c.apiKey)
-	req.Header.Set("Accept", "application/json")
 
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		msg := strings.TrimSpace(string(body))
-		if msg == "" {
-			msg = http.StatusText(resp.StatusCode)
+	var lastErr error
+	for attempt := 1; attempt <= c.maxAttempts; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+		if err != nil {
+			return err
 		}
-		return &clockifyHTTPError{StatusCode: resp.StatusCode, Message: msg}
-	}
-	if len(body) == 0 {
+		req.Header.Set("X-Api-Key", c.apiKey)
+		req.Header.Set("Accept", "application/json")
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			lastErr = err
+			if c.shouldRetry(0, err, attempt) {
+				delay := c.retryDelay(attempt, "")
+				if sleepErr := sleepWithContext(ctx, delay); sleepErr != nil {
+					return sleepErr
+				}
+				continue
+			}
+			return err
+		}
+
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		resp.Body.Close()
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			msg := strings.TrimSpace(string(body))
+			if msg == "" {
+				msg = http.StatusText(resp.StatusCode)
+			}
+			lastErr = &clockifyHTTPError{StatusCode: resp.StatusCode, Message: msg}
+			if c.shouldRetry(resp.StatusCode, nil, attempt) {
+				delay := c.retryDelay(attempt, resp.Header.Get("Retry-After"))
+				if sleepErr := sleepWithContext(ctx, delay); sleepErr != nil {
+					return sleepErr
+				}
+				continue
+			}
+			return lastErr
+		}
+
+		if len(body) == 0 {
+			return nil
+		}
+		if err := json.Unmarshal(body, dst); err != nil {
+			return err
+		}
 		return nil
 	}
-	if err := json.Unmarshal(body, dst); err != nil {
-		return err
+
+	if lastErr != nil {
+		return lastErr
 	}
-	return nil
+	return fmt.Errorf("clockify request failed")
+}
+
+func (c *clockifyClient) shouldRetry(statusCode int, err error, attempt int) bool {
+	if attempt >= c.maxAttempts {
+		return false
+	}
+	if err != nil {
+		return true
+	}
+	return statusCode == http.StatusTooManyRequests || statusCode >= http.StatusInternalServerError
+}
+
+func (c *clockifyClient) retryDelay(attempt int, retryAfter string) time.Duration {
+	if d := parseRetryAfter(retryAfter); d > 0 {
+		if c.maxDelay > 0 && d > c.maxDelay {
+			return c.maxDelay
+		}
+		return d
+	}
+
+	delay := c.baseDelay
+	if delay <= 0 {
+		delay = 500 * time.Millisecond
+	}
+	if attempt > 1 {
+		delay = delay * time.Duration(1<<(attempt-1))
+	}
+	if c.maxDelay > 0 && delay > c.maxDelay {
+		return c.maxDelay
+	}
+	return delay
+}
+
+func parseRetryAfter(raw string) time.Duration {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return 0
+	}
+	if secs, err := strconv.Atoi(value); err == nil && secs >= 0 {
+		return time.Duration(secs) * time.Second
+	}
+	if t, err := http.ParseTime(value); err == nil {
+		if d := time.Until(t); d > 0 {
+			return d
+		}
+	}
+	return 0
+}
+
+func sleepWithContext(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (c *clockifyClient) ListUsers(ctx context.Context, workspaceID string) ([]clockifyUser, error) {
@@ -276,6 +404,129 @@ func (h *HRHandler) GetClockifyConfig(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
 	})
+}
+
+func (h *HRHandler) GetClockifyStatus(w http.ResponseWriter, r *http.Request) {
+	tenantID := mw.GetTenantID(r.Context())
+
+	conn, found, err := h.getClockifyConnection(tenantID)
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		writeJSON(w, http.StatusOK, clockifyStatusResp{
+			Configured:               false,
+			UnmappedEmployeesPreview: []clockifyUnmappedPreview{},
+		})
+		return
+	}
+
+	var agg struct {
+		LastSyncAt       sql.NullTime `db:"last_sync_at"`
+		LastEntryStartAt sql.NullTime `db:"last_entry_start_at"`
+		LastEntryEndAt   sql.NullTime `db:"last_entry_end_at"`
+		EntriesTotal     int64        `db:"entries_total"`
+		EntriesRunning   int64        `db:"entries_running"`
+	}
+	if err := h.DB.Get(&agg, `
+		SELECT
+			MAX(synced_at) AS last_sync_at,
+			MAX(start_at) AS last_entry_start_at,
+			MAX(end_at) AS last_entry_end_at,
+			COUNT(*) AS entries_total,
+			COALESCE(SUM(CASE WHEN is_running = 1 THEN 1 ELSE 0 END), 0) AS entries_running
+		FROM hr_time_entries
+		WHERE tenant_id=?
+	`, tenantID); err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	windowStart := dateOnly(time.Now().UTC().AddDate(0, 0, -7))
+	var entriesLast7Days int64
+	if err := h.DB.Get(&entriesLast7Days, `
+		SELECT COUNT(*)
+		FROM hr_time_entries
+		WHERE tenant_id=? AND start_at>=?
+	`, tenantID, windowStart); err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	var mappedEmployees int64
+	if err := h.DB.Get(&mappedEmployees, `
+		SELECT COUNT(*)
+		FROM hr_clockify_user_links
+		WHERE tenant_id=?
+	`, tenantID); err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	var activeEmployees int64
+	if err := h.DB.Get(&activeEmployees, `
+		SELECT COUNT(*)
+		FROM employees
+		WHERE tenant_id=? AND status <> 'terminated'
+	`, tenantID); err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	var activeUnmappedEmployees int64
+	if err := h.DB.Get(&activeUnmappedEmployees, `
+		SELECT COUNT(*)
+		FROM employees e
+		LEFT JOIN hr_clockify_user_links l ON l.tenant_id=e.tenant_id AND l.employee_id=e.id
+		WHERE e.tenant_id=? AND e.status <> 'terminated' AND l.employee_id IS NULL
+	`, tenantID); err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	unmapped := make([]clockifyUnmappedPreview, 0, statusUnmappedLimit)
+	if err := h.DB.Select(&unmapped, `
+		SELECT
+			e.id AS employee_id,
+			e.name,
+			COALESCE(e.email, '') AS email
+		FROM employees e
+		LEFT JOIN hr_clockify_user_links l ON l.tenant_id=e.tenant_id AND l.employee_id=e.id
+		WHERE e.tenant_id=? AND e.status <> 'terminated' AND l.employee_id IS NULL
+		ORDER BY e.name ASC
+		LIMIT ?
+	`, tenantID, statusUnmappedLimit); err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	resp := clockifyStatusResp{
+		Configured:               true,
+		WorkspaceID:              conn.WorkspaceID,
+		APIKeyMasked:             maskSecret(conn.APIKey),
+		EntriesTotal:             agg.EntriesTotal,
+		EntriesLast7Days:         entriesLast7Days,
+		EntriesRunning:           agg.EntriesRunning,
+		ActiveEmployees:          activeEmployees,
+		MappedEmployees:          mappedEmployees,
+		ActiveUnmappedEmployees:  activeUnmappedEmployees,
+		UnmappedEmployeesPreview: unmapped,
+	}
+	if agg.LastSyncAt.Valid {
+		t := agg.LastSyncAt.Time
+		resp.LastSyncAt = &t
+	}
+	if agg.LastEntryStartAt.Valid {
+		t := agg.LastEntryStartAt.Time
+		resp.LastEntryStartAt = &t
+	}
+	if agg.LastEntryEndAt.Valid {
+		t := agg.LastEntryEndAt.Time
+		resp.LastEntryEndAt = &t
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *HRHandler) UpsertClockifyConfig(w http.ResponseWriter, r *http.Request) {

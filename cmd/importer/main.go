@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/csv"
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -12,188 +12,221 @@ import (
 	"time"
 )
 
-type employee struct {
-	ID           uint64  `json:"id"`
-	EmployeeCode string  `json:"employee_code"`
-	Name         string  `json:"name"`
-	Email        *string `json:"email"`
+type syncRequest struct {
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
 }
 
-type timeEntryReq struct {
-	EmployeeID uint64  `json:"employee_id"`
-	ClockIn    string  `json:"clock_in"`
-	ClockOut   *string `json:"clock_out,omitempty"`
-	NoteIn     *string `json:"note_in,omitempty"`
-	NoteOut    *string `json:"note_out,omitempty"`
+type syncResponse struct {
+	RangeStart       string `json:"range_start"`
+	RangeEnd         string `json:"range_end"`
+	EmployeesTotal   int    `json:"employees_total"`
+	UsersFound       int    `json:"users_found"`
+	EmployeesMapped  int    `json:"employees_mapped"`
+	EntriesProcessed int    `json:"entries_processed"`
+	EntriesUpserted  int    `json:"entries_upserted"`
+	RunningEntries   int    `json:"running_entries"`
+	SyncedAt         string `json:"synced_at"`
+}
+
+type statusPreview struct {
+	EmployeeID uint64 `json:"employee_id"`
+	Name       string `json:"name"`
+	Email      string `json:"email"`
+}
+
+type statusResponse struct {
+	Configured               bool            `json:"configured"`
+	WorkspaceID              string          `json:"workspace_id"`
+	APIKeyMasked             string          `json:"api_key_masked"`
+	LastSyncAt               string          `json:"last_sync_at"`
+	EntriesTotal             int64           `json:"entries_total"`
+	EntriesLast7Days         int64           `json:"entries_last_7_days"`
+	EntriesRunning           int64           `json:"entries_running"`
+	ActiveEmployees          int64           `json:"active_employees"`
+	MappedEmployees          int64           `json:"mapped_employees"`
+	ActiveUnmappedEmployees  int64           `json:"active_unmapped_employees"`
+	UnmappedEmployeesPreview []statusPreview `json:"unmapped_employees_preview"`
 }
 
 func main() {
 	var (
-		csvPath string
-		baseURL string
-		token   string
+		action   string
+		baseURL  string
+		token    string
+		startRaw string
+		endRaw   string
+		lastDays int
 	)
-	flag.StringVar(&csvPath, "file", "", "CSV com colunas: employee_code,clock_in,clock_out,note_in,note_out")
+
+	flag.StringVar(&action, "action", "sync", "Acao: sync ou status")
 	flag.StringVar(&baseURL, "base-url", os.Getenv("API_URL"), "Base URL da API (ex: https://api/v1)")
 	flag.StringVar(&token, "token", os.Getenv("API_TOKEN"), "Bearer token JWT")
+	flag.StringVar(&startRaw, "start-date", "", "Data inicial (YYYY-MM-DD)")
+	flag.StringVar(&endRaw, "end-date", "", "Data final (YYYY-MM-DD)")
+	flag.IntVar(&lastDays, "last-days", 30, "Janela em dias para sync quando start/end nao informados")
 	flag.Parse()
 
-	if csvPath == "" || baseURL == "" || token == "" {
-		fmt.Println("Uso: importer -file registros.csv -base-url https://api/v1 -token <JWT>")
+	if baseURL == "" || token == "" {
+		fmt.Println("Uso: importer -action sync|status -base-url https://api/v1 -token <JWT>")
 		os.Exit(1)
 	}
 	baseURL = strings.TrimSuffix(baseURL, "/")
 
-	empMap, err := loadEmployees(baseURL, token)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "erro ao carregar employees: %v\n", err)
-		os.Exit(1)
-	}
-
-	file, err := os.Open(csvPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "erro ao abrir CSV: %v\n", err)
-		os.Exit(1)
-	}
-	defer file.Close()
-
-	r := csv.NewReader(file)
-	r.FieldsPerRecord = -1
-	header, err := r.Read()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "erro lendo header: %v\n", err)
-		os.Exit(1)
-	}
-	idx := colIndex(header)
-	rowNum := 1
-	imported := 0
-	for {
-		row, err := r.Read()
-		if err == io.EOF {
-			break
-		}
-		rowNum++
+	switch strings.ToLower(strings.TrimSpace(action)) {
+	case "status":
+		status, err := getStatus(baseURL, token)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "linha %d: %v\n", rowNum, err)
-			continue
+			fatalf("erro ao consultar status: %v", err)
 		}
-		rec := recordFromRow(row, idx)
-		empID, ok := empMap[rec.EmployeeCode]
-		if !ok {
-			fmt.Fprintf(os.Stderr, "linha %d: employee_code %s não encontrado\n", rowNum, rec.EmployeeCode)
-			continue
-		}
+		printStatus(status)
 
-		body := timeEntryReq{
-			EmployeeID: empID,
-			ClockIn:    rec.ClockIn,
-			ClockOut:   opt(rec.ClockOut),
-			NoteIn:     opt(rec.NoteIn),
-			NoteOut:    opt(rec.NoteOut),
+	case "sync":
+		startDate, endDate, err := resolveDateRange(startRaw, endRaw, lastDays)
+		if err != nil {
+			fatalf("datas invalidas: %v", err)
 		}
-		if err := postTimeEntry(baseURL, token, body); err != nil {
-			fmt.Fprintf(os.Stderr, "linha %d: erro ao enviar: %v\n", rowNum, err)
-			continue
+		resp, err := runSync(baseURL, token, syncRequest{
+			StartDate: startDate,
+			EndDate:   endDate,
+		})
+		if err != nil {
+			fatalf("erro ao sincronizar: %v", err)
 		}
-		imported++
-	}
-	fmt.Printf("Importação concluída. Registros inseridos: %d\n", imported)
-}
+		fmt.Printf("Sync concluido (%s a %s)\n", resp.RangeStart, resp.RangeEnd)
+		fmt.Printf("Usuarios encontrados: %d | Mapeados: %d\n", resp.UsersFound, resp.EmployeesMapped)
+		fmt.Printf("Batidas processadas: %d | Gravadas: %d\n", resp.EntriesProcessed, resp.EntriesUpserted)
 
-type rowData struct {
-	EmployeeCode string
-	ClockIn      string
-	ClockOut     string
-	NoteIn       string
-	NoteOut      string
-}
-
-func colIndex(header []string) map[string]int {
-	m := map[string]int{}
-	for i, h := range header {
-		key := strings.ToLower(strings.TrimSpace(h))
-		m[key] = i
-	}
-	return m
-}
-
-func recordFromRow(row []string, idx map[string]int) rowData {
-	get := func(name string) string {
-		if i, ok := idx[name]; ok && i < len(row) {
-			return strings.TrimSpace(row[i])
+		status, err := getStatus(baseURL, token)
+		if err != nil {
+			fatalf("sync ok, mas falhou ao consultar status: %v", err)
 		}
-		return ""
-	}
-	return rowData{
-		EmployeeCode: get("employee_code"),
-		ClockIn:      normalizeDate(get("clock_in")),
-		ClockOut:     normalizeDate(get("clock_out")),
-		NoteIn:       get("note_in"),
-		NoteOut:      get("note_out"),
+		printStatus(status)
+
+	default:
+		fatalf("acao invalida: %s (use sync ou status)", action)
 	}
 }
 
-func normalizeDate(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return ""
+func resolveDateRange(startRaw, endRaw string, lastDays int) (string, string, error) {
+	if lastDays < 1 {
+		lastDays = 30
 	}
-	// tenta converter formatos comuns (ex: 2026-02-11 10:00)
-	layouts := []string{"2006-01-02 15:04", "2006-01-02"}
-	for _, l := range layouts {
-		if t, err := time.Parse(l, s); err == nil {
-			return t.UTC().Format(time.RFC3339)
-		}
-	}
-	return s // assume já está em RFC3339
-}
 
-func opt(s string) *string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return nil
+	if strings.TrimSpace(startRaw) == "" && strings.TrimSpace(endRaw) == "" {
+		end := time.Now().UTC()
+		start := end.AddDate(0, 0, -lastDays)
+		return start.Format("2006-01-02"), end.Format("2006-01-02"), nil
 	}
-	return &s
-}
 
-func loadEmployees(baseURL, token string) (map[string]uint64, error) {
-	req, _ := http.NewRequest(http.MethodGet, baseURL+"/employees", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := http.DefaultClient.Do(req)
+	start, err := parseDateArg(startRaw)
 	if err != nil {
-		return nil, err
+		return "", "", fmt.Errorf("start-date: %w", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GET /employees status %d", resp.StatusCode)
+	end, err := parseDateArg(endRaw)
+	if err != nil {
+		return "", "", fmt.Errorf("end-date: %w", err)
 	}
-	var employees []employee
-	if err := json.NewDecoder(resp.Body).Decode(&employees); err != nil {
-		return nil, err
+	if end.Before(start) {
+		return "", "", fmt.Errorf("end-date deve ser >= start-date")
 	}
-	out := make(map[string]uint64, len(employees))
-	for _, e := range employees {
-		code := strings.TrimSpace(e.EmployeeCode)
-		if code != "" {
-			out[code] = e.ID
-		}
+	return start.Format("2006-01-02"), end.Format("2006-01-02"), nil
+}
+
+func parseDateArg(raw string) (time.Time, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return time.Time{}, fmt.Errorf("obrigatorio")
+	}
+	t, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return t.UTC(), nil
+}
+
+func runSync(baseURL, token string, body syncRequest) (syncResponse, error) {
+	var out syncResponse
+	if err := doJSON(baseURL+"/integrations/clockify/sync", token, http.MethodPost, body, &out); err != nil {
+		return syncResponse{}, err
 	}
 	return out, nil
 }
 
-func postTimeEntry(baseURL, token string, body timeEntryReq) error {
-	b, _ := json.Marshal(body)
-	req, _ := http.NewRequest(http.MethodPost, baseURL+"/time-entries", strings.NewReader(string(b)))
+func getStatus(baseURL, token string) (statusResponse, error) {
+	var out statusResponse
+	if err := doJSON(baseURL+"/integrations/clockify/status", token, http.MethodGet, nil, &out); err != nil {
+		return statusResponse{}, err
+	}
+	return out, nil
+}
+
+func doJSON(url, token, method string, payload any, dst any) error {
+	var body io.Reader
+	if payload != nil {
+		b, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		body = bytes.NewReader(b)
+	}
+
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return err
+	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusCreated {
-		msg, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("status %d: %s", resp.StatusCode, string(msg))
+
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
 	}
-	return nil
+	if len(respBody) == 0 || dst == nil {
+		return nil
+	}
+	return json.Unmarshal(respBody, dst)
+}
+
+func printStatus(status statusResponse) {
+	fmt.Println("----- Clockify Status -----")
+	fmt.Printf("Configurado: %t\n", status.Configured)
+	if !status.Configured {
+		return
+	}
+	fmt.Printf("Workspace: %s\n", status.WorkspaceID)
+	fmt.Printf("API Key: %s\n", status.APIKeyMasked)
+	if status.LastSyncAt != "" {
+		fmt.Printf("Ultima sincronizacao: %s\n", status.LastSyncAt)
+	}
+	fmt.Printf("Registros totais: %d\n", status.EntriesTotal)
+	fmt.Printf("Registros ultimos 7 dias: %d\n", status.EntriesLast7Days)
+	fmt.Printf("Em andamento: %d\n", status.EntriesRunning)
+	fmt.Printf("Ativos: %d | Mapeados: %d | Sem mapeamento: %d\n",
+		status.ActiveEmployees,
+		status.MappedEmployees,
+		status.ActiveUnmappedEmployees,
+	)
+
+	if len(status.UnmappedEmployeesPreview) > 0 {
+		fmt.Println("Preview sem mapeamento:")
+		for _, item := range status.UnmappedEmployeesPreview {
+			email := item.Email
+			if strings.TrimSpace(email) == "" {
+				email = "sem email"
+			}
+			fmt.Printf("- #%d %s (%s)\n", item.EmployeeID, item.Name, email)
+		}
+	}
+}
+
+func fatalf(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, format+"\n", args...)
+	os.Exit(1)
 }

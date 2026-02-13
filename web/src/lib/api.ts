@@ -157,6 +157,26 @@ export interface ClockifySyncResult {
   synced_at: string;
 }
 
+export interface ClockifyStatus {
+  configured: boolean;
+  workspace_id?: string;
+  api_key_masked?: string;
+  last_sync_at?: string;
+  last_entry_start_at?: string;
+  last_entry_end_at?: string;
+  entries_total: number;
+  entries_last_7_days: number;
+  entries_running: number;
+  active_employees: number;
+  mapped_employees: number;
+  active_unmapped_employees: number;
+  unmapped_employees_preview: Array<{
+    employee_id: number;
+    name: string;
+    email: string;
+  }>;
+}
+
 export interface HRTimeEntry {
   id: number;
   tenant_id: number;
