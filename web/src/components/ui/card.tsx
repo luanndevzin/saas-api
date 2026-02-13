@@ -1,15 +1,19 @@
 import * as React from "react";
-import { Box, Card as MantineCard, CardProps as MantineCardProps, Text } from "@mantine/core";
+import { Box, Card as MantineCard, Text } from "@mantine/core";
 import { cn } from "../../lib/utils";
 
-export function Card({ className, ...props }: MantineCardProps) {
+export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  [key: string]: any;
+}
+
+export function Card({ className, ...props }: CardProps) {
   return (
     <MantineCard
       withBorder
       radius="lg"
       p="md"
       className={cn("shadow-card", className)}
-      {...props}
+      {...(props as any)}
     />
   );
 }

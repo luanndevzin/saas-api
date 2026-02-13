@@ -1,11 +1,19 @@
-import { Button as MantineButton, ButtonProps as MantineButtonProps } from "@mantine/core";
+import * as React from "react";
+import { Button as MantineButton } from "@mantine/core";
+import { cn } from "../../lib/utils";
 
 type ButtonVariant = "default" | "secondary" | "ghost" | "outline" | "destructive";
 type ButtonSize = "xs" | "sm" | "md" | "lg" | "icon";
 
-export interface ButtonProps extends Omit<MantineButtonProps, "variant" | "size" | "color"> {
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  className?: string;
+  loading?: boolean;
+  component?: React.ElementType;
+  to?: string;
+  href?: string;
+  [key: string]: any;
 }
 
 function resolveVariant(variant: ButtonVariant = "default") {
@@ -36,7 +44,7 @@ function resolveSize(size: ButtonSize = "md") {
   }
 }
 
-export function Button({ variant = "default", size = "md", style, ...props }: ButtonProps) {
+export function Button({ variant = "default", size = "md", style, className, ...props }: ButtonProps) {
   const mapped = resolveVariant(variant);
   const mappedSize = resolveSize(size);
 
@@ -46,12 +54,13 @@ export function Button({ variant = "default", size = "md", style, ...props }: Bu
       variant={mapped.variant}
       color={mapped.color}
       size={mappedSize}
+      className={cn(className)}
       style={
         size === "icon"
           ? { width: 40, height: 40, padding: 0, ...(style || {}) }
           : style
       }
-      {...props}
+      {...(props as any)}
     />
   );
 }
