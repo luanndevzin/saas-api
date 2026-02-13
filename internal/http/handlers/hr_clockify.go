@@ -559,7 +559,10 @@ func StartClockifyAutoSyncScheduler(ctx context.Context, h *HRHandler, hourUTC, 
 		select {
 		case <-ctx.Done():
 			if !timer.Stop() {
-				<-timer.C
+				select {
+				case <-timer.C:
+				default:
+				}
 			}
 			log.Info().Msg("clockify auto sync scheduler stopped")
 			return

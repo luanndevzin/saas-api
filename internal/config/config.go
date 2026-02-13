@@ -23,7 +23,7 @@ type Config struct {
 
 	RunMigrations bool `env:"RUN_MIGRATIONS" envDefault:"true"`
 
-	ClockifyAutoSyncEnabled      bool `env:"CLOCKIFY_AUTO_SYNC_ENABLED" envDefault:"false"`
+	ClockifyAutoSyncEnabled      bool `env:"CLOCKIFY_AUTO_SYNC_ENABLED" envDefault:"true"`
 	ClockifyAutoSyncHourUTC      int  `env:"CLOCKIFY_AUTO_SYNC_HOUR_UTC" envDefault:"3"`
 	ClockifyAutoSyncLookbackDays int  `env:"CLOCKIFY_AUTO_SYNC_LOOKBACK_DAYS" envDefault:"2"`
 }
