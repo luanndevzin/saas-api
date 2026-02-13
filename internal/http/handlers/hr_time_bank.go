@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/csv"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-pdf/fpdf"
 
 	mw "saas-api/internal/http/middleware"
 )
@@ -177,6 +179,45 @@ type timeBankCardDay struct {
 	ExpectedSeconds   int64
 	AdjustmentSeconds int64
 	BalanceSeconds    int64
+}
+
+type timeBankCardEmployee struct {
+	EmployeeID        uint64         `db:"employee_id"`
+	EmployeeName      string         `db:"employee_name"`
+	EmployeeCode      string         `db:"employee_code"`
+	Status            string         `db:"status"`
+	HireDate          sql.NullTime   `db:"hire_date"`
+	DepartmentName    sql.NullString `db:"department_name"`
+	PositionTitle     sql.NullString `db:"position_title"`
+	WorkedSeconds     int64          `db:"worked_seconds"`
+	ExpectedSeconds   int64          `db:"expected_seconds"`
+	AdjustmentSeconds int64          `db:"adjustment_seconds"`
+	BalanceSeconds    int64          `db:"balance_seconds"`
+}
+
+const (
+	timeCardRowsPerPage = 28
+	timeCardTableRowH   = 6.0
+	timeCardFontName    = "Helvetica"
+)
+
+type timeCardColumn struct {
+	Title string
+	Width float64
+	Align string
+}
+
+var timeCardColumns = []timeCardColumn{
+	{Title: "DATA", Width: 22, Align: "L"},
+	{Title: "DIA", Width: 12, Align: "C"},
+	{Title: "ENT 1", Width: 13, Align: "C"},
+	{Title: "SAI 1", Width: 13, Align: "C"},
+	{Title: "ENT 2", Width: 13, Align: "C"},
+	{Title: "SAI 2", Width: 13, Align: "C"},
+	{Title: "TRAB.", Width: 26, Align: "C"},
+	{Title: "PREV.", Width: 26, Align: "C"},
+	{Title: "AJUSTE", Width: 20, Align: "C"},
+	{Title: "SALDO", Width: 20, Align: "C"},
 }
 
 func (h *HRHandler) GetTimeBankSettings(w http.ResponseWriter, r *http.Request) {
@@ -776,20 +817,148 @@ func (h *HRHandler) ListTimeBankClosureEmployees(w http.ResponseWriter, r *http.
 		return
 	}
 
-	items := make([]TimeBankClosureEmployee, 0, 200)
-	if err := h.DB.Select(&items, `
-		SELECT i.employee_id, e.name AS employee_name,
-		       i.worked_seconds, i.expected_seconds, i.adjustment_seconds, i.balance_seconds
-		FROM hr_time_bank_closure_items i
-		JOIN employees e ON e.tenant_id=i.tenant_id AND e.id=i.employee_id
-		WHERE i.tenant_id=? AND i.closure_id=?
-		ORDER BY e.name ASC, i.employee_id ASC
-	`, tenantID, id); err != nil {
+	employees, err := h.loadTimeBankClosureCardEmployees(tenantID, id, nil)
+	if err != nil {
 		httpError(w, "db read error", http.StatusInternalServerError)
 		return
 	}
 
+	items := make([]TimeBankClosureEmployee, 0, len(employees))
+	for _, employee := range employees {
+		items = append(items, TimeBankClosureEmployee{
+			EmployeeID:        employee.EmployeeID,
+			EmployeeName:      employee.EmployeeName,
+			WorkedSeconds:     employee.WorkedSeconds,
+			ExpectedSeconds:   employee.ExpectedSeconds,
+			AdjustmentSeconds: employee.AdjustmentSeconds,
+			BalanceSeconds:    employee.BalanceSeconds,
+		})
+	}
+
 	writeJSON(w, http.StatusOK, items)
+}
+
+func (h *HRHandler) ExportTimeBankClosureCardsPDF(w http.ResponseWriter, r *http.Request) {
+	tenantID := mw.GetTenantID(r.Context())
+
+	closureID, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httpError(w, "invalid request id", http.StatusBadRequest)
+		return
+	}
+
+	closure, err := h.getTimeBankClosureByID(h.DB, tenantID, closureID)
+	if err == sql.ErrNoRows {
+		httpError(w, "time bank closure not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	employees, err := h.loadTimeBankClosureCardEmployees(tenantID, closureID, nil)
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+	if len(employees) == 0 {
+		httpError(w, "employee not found in closure", http.StatusNotFound)
+		return
+	}
+
+	settings, err := h.loadTimeBankSettings(tenantID)
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	tenantName, err := h.loadTenantName(tenantID)
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	pdfBytes, err := h.buildTimeBankCardsPDF(tenantID, tenantName, closure, employees, settings)
+	if err != nil {
+		httpError(w, "could not generate time card pdf", http.StatusInternalServerError)
+		return
+	}
+
+	filename := fmt.Sprintf(
+		"cartoes-ponto-%s-a-%s.pdf",
+		closure.PeriodStart.Format("2006-01-02"),
+		closure.PeriodEnd.Format("2006-01-02"),
+	)
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(pdfBytes)
+}
+
+func (h *HRHandler) ExportTimeBankEmployeeCardPDF(w http.ResponseWriter, r *http.Request) {
+	tenantID := mw.GetTenantID(r.Context())
+
+	closureID, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httpError(w, "invalid request id", http.StatusBadRequest)
+		return
+	}
+	employeeID, err := strconv.ParseUint(chi.URLParam(r, "employee_id"), 10, 64)
+	if err != nil {
+		httpError(w, "invalid employee id", http.StatusBadRequest)
+		return
+	}
+
+	closure, err := h.getTimeBankClosureByID(h.DB, tenantID, closureID)
+	if err == sql.ErrNoRows {
+		httpError(w, "time bank closure not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	employees, err := h.loadTimeBankClosureCardEmployees(tenantID, closureID, &employeeID)
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+	if len(employees) == 0 {
+		httpError(w, "employee not found in closure", http.StatusNotFound)
+		return
+	}
+	employee := employees[0]
+
+	settings, err := h.loadTimeBankSettings(tenantID)
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	tenantName, err := h.loadTenantName(tenantID)
+	if err != nil {
+		httpError(w, "db read error", http.StatusInternalServerError)
+		return
+	}
+
+	pdfBytes, err := h.buildTimeBankCardsPDF(tenantID, tenantName, closure, employees, settings)
+	if err != nil {
+		httpError(w, "could not generate time card pdf", http.StatusInternalServerError)
+		return
+	}
+
+	filename := fmt.Sprintf(
+		"cartao-ponto-%d-%s-a-%s.pdf",
+		employee.EmployeeID,
+		closure.PeriodStart.Format("2006-01-02"),
+		closure.PeriodEnd.Format("2006-01-02"),
+	)
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(pdfBytes)
 }
 
 func (h *HRHandler) ExportTimeBankEmployeeCardCSV(w http.ResponseWriter, r *http.Request) {
@@ -816,28 +985,22 @@ func (h *HRHandler) ExportTimeBankEmployeeCardCSV(w http.ResponseWriter, r *http
 		return
 	}
 
-	var employee TimeBankClosureEmployee
-	if err := h.DB.Get(&employee, `
-		SELECT i.employee_id, e.name AS employee_name,
-		       i.worked_seconds, i.expected_seconds, i.adjustment_seconds, i.balance_seconds
-		FROM hr_time_bank_closure_items i
-		JOIN employees e ON e.tenant_id=i.tenant_id AND e.id=i.employee_id
-		WHERE i.tenant_id=? AND i.closure_id=? AND i.employee_id=?
-		LIMIT 1
-	`, tenantID, closureID, employeeID); err == sql.ErrNoRows {
-		httpError(w, "employee not found in closure", http.StatusNotFound)
-		return
-	} else if err != nil {
+	employees, err := h.loadTimeBankClosureCardEmployees(tenantID, closureID, &employeeID)
+	if err != nil {
 		httpError(w, "db read error", http.StatusInternalServerError)
 		return
 	}
+	if len(employees) == 0 {
+		httpError(w, "employee not found in closure", http.StatusNotFound)
+		return
+	}
+	employee := employees[0]
 
 	settings, err := h.loadTimeBankSettings(tenantID)
 	if err != nil {
 		httpError(w, "db read error", http.StatusInternalServerError)
 		return
 	}
-
 	days, err := h.buildTimeCardDays(tenantID, employeeID, closure.PeriodStart, closure.PeriodEnd, settings)
 	if err != nil {
 		httpError(w, "db read error", http.StatusInternalServerError)
@@ -906,6 +1069,67 @@ func (h *HRHandler) ExportTimeBankEmployeeCardCSV(w http.ResponseWriter, r *http
 	})
 
 	writer.Flush()
+}
+
+func (h *HRHandler) loadTimeBankClosureCardEmployees(tenantID, closureID uint64, employeeID *uint64) ([]timeBankCardEmployee, error) {
+	query := `
+		SELECT i.employee_id, e.name AS employee_name, e.employee_code, e.status, e.hire_date,
+		       d.name AS department_name, p.title AS position_title,
+		       i.worked_seconds, i.expected_seconds, i.adjustment_seconds, i.balance_seconds
+		FROM hr_time_bank_closure_items i
+		JOIN employees e ON e.tenant_id=i.tenant_id AND e.id=i.employee_id
+		LEFT JOIN departments d ON d.tenant_id=e.tenant_id AND d.id=e.department_id
+		LEFT JOIN positions p ON p.tenant_id=e.tenant_id AND p.id=e.position_id
+		WHERE i.tenant_id=? AND i.closure_id=?
+	`
+	args := []any{tenantID, closureID}
+	if employeeID != nil {
+		query += " AND i.employee_id=?"
+		args = append(args, *employeeID)
+	}
+	query += " ORDER BY e.name ASC, i.employee_id ASC"
+
+	items := make([]timeBankCardEmployee, 0, 200)
+	if err := h.DB.Select(&items, query, args...); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (h *HRHandler) loadTenantName(tenantID uint64) (string, error) {
+	var tenantName string
+	if err := h.DB.Get(&tenantName, `SELECT name FROM tenants WHERE id=? LIMIT 1`, tenantID); err != nil {
+		return "", err
+	}
+	return tenantName, nil
+}
+
+func (h *HRHandler) buildTimeBankCardsPDF(
+	tenantID uint64,
+	tenantName string,
+	closure TimeBankClosure,
+	employees []timeBankCardEmployee,
+	settings timeBankSettings,
+) ([]byte, error) {
+	pdf := fpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(10, 10, 10)
+	pdf.SetAutoPageBreak(false, 10)
+	pdf.SetTitle("Cartoes de ponto", false)
+	generatedAt := time.Now().UTC()
+
+	for idx, employee := range employees {
+		days, err := h.buildTimeCardDays(tenantID, employee.EmployeeID, closure.PeriodStart, closure.PeriodEnd, settings)
+		if err != nil {
+			return nil, err
+		}
+		renderTimeCardEmployeePages(pdf, tenantName, closure, employee, days, idx+1, len(employees), generatedAt)
+	}
+
+	var out bytes.Buffer
+	if err := pdf.Output(&out); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
 }
 
 func (h *HRHandler) ReopenTimeBankClosure(w http.ResponseWriter, r *http.Request) {
@@ -1402,6 +1626,255 @@ func weekdayPT(wd time.Weekday) string {
 		return "sab"
 	default:
 		return "dom"
+	}
+}
+
+func renderTimeCardEmployeePages(
+	pdf *fpdf.Fpdf,
+	tenantName string,
+	closure TimeBankClosure,
+	employee timeBankCardEmployee,
+	days []timeBankCardDay,
+	employeeIndex int,
+	totalEmployees int,
+	generatedAt time.Time,
+) {
+	totalPages := len(days) / timeCardRowsPerPage
+	if len(days)%timeCardRowsPerPage != 0 {
+		totalPages++
+	}
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	for page := 0; page < totalPages; page++ {
+		pdf.AddPage()
+		drawTimeCardHeader(
+			pdf,
+			tenantName,
+			closure,
+			employee,
+			employeeIndex,
+			totalEmployees,
+			page+1,
+			totalPages,
+			generatedAt,
+		)
+		drawTimeCardTableHeader(pdf)
+
+		start := page * timeCardRowsPerPage
+		end := start + timeCardRowsPerPage
+		if end > len(days) {
+			end = len(days)
+		}
+
+		if start >= len(days) {
+			drawTimeCardEmptyRow(pdf, "Sem registros no periodo.")
+		} else {
+			for rowIdx, day := range days[start:end] {
+				drawTimeCardDayRow(pdf, day, (start+rowIdx)%2 == 1)
+			}
+		}
+
+		if page == totalPages-1 {
+			drawTimeCardTotalsRow(pdf, employee)
+		}
+	}
+}
+
+func drawTimeCardHeader(
+	pdf *fpdf.Fpdf,
+	tenantName string,
+	closure TimeBankClosure,
+	employee timeBankCardEmployee,
+	employeeIndex int,
+	totalEmployees int,
+	page int,
+	totalPages int,
+	generatedAt time.Time,
+) {
+	pdf.SetFont(timeCardFontName, "B", 16)
+	pdf.CellFormat(0, 8, "CARTAO PONTO", "", 1, "L", false, 0, "")
+
+	pdf.SetFont(timeCardFontName, "", 10)
+	pdf.CellFormat(0, 5, fmt.Sprintf("Periodo: %s ate %s", formatDateBR(closure.PeriodStart), formatDateBR(closure.PeriodEnd)), "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 5, fmt.Sprintf("Empresa: %s", tenantName), "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 5, fmt.Sprintf("Colaborador: %s", employee.EmployeeName), "", 1, "L", false, 0, "")
+	pdf.CellFormat(
+		0,
+		5,
+		fmt.Sprintf(
+			"Codigo: %s   Departamento: %s   Funcao: %s",
+			defaultOrDash(strings.TrimSpace(employee.EmployeeCode)),
+			nullStringOrDash(employee.DepartmentName),
+			nullStringOrDash(employee.PositionTitle),
+		),
+		"",
+		1,
+		"L",
+		false,
+		0,
+		"",
+	)
+	pdf.CellFormat(
+		0,
+		5,
+		fmt.Sprintf(
+			"Admissao: %s   Status: %s",
+			nullDateOrDash(employee.HireDate),
+			statusLabelPT(employee.Status),
+		),
+		"",
+		1,
+		"L",
+		false,
+		0,
+		"",
+	)
+	pdf.CellFormat(
+		0,
+		5,
+		fmt.Sprintf(
+			"Emitido em %s UTC   Colaborador %d/%d   Pagina %d/%d",
+			generatedAt.Format("02/01/2006 15:04"),
+			employeeIndex,
+			totalEmployees,
+			page,
+			totalPages,
+		),
+		"",
+		1,
+		"L",
+		false,
+		0,
+		"",
+	)
+
+	y := pdf.GetY() + 2
+	pdf.SetDrawColor(200, 206, 218)
+	pdf.Line(10, y, 200, y)
+	pdf.SetY(y + 3)
+}
+
+func drawTimeCardTableHeader(pdf *fpdf.Fpdf) {
+	pdf.SetFont(timeCardFontName, "B", 8.5)
+	pdf.SetTextColor(255, 255, 255)
+	pdf.SetFillColor(28, 38, 56)
+	for _, col := range timeCardColumns {
+		pdf.CellFormat(col.Width, timeCardTableRowH+0.5, col.Title, "1", 0, "C", true, 0, "")
+	}
+	pdf.Ln(-1)
+	pdf.SetTextColor(0, 0, 0)
+}
+
+func drawTimeCardDayRow(pdf *fpdf.Fpdf, day timeBankCardDay, fill bool) {
+	pdf.SetFont(timeCardFontName, "", 8.5)
+	if fill {
+		pdf.SetFillColor(245, 248, 252)
+	}
+
+	values := []string{
+		formatDateBR(day.Date),
+		strings.ToUpper(day.WeekdayLabel),
+		day.Entry1,
+		day.Exit1,
+		day.Entry2,
+		day.Exit2,
+		formatDurationClock(day.WorkedSeconds, false),
+		formatDurationClock(day.ExpectedSeconds, false),
+		formatDurationClock(day.AdjustmentSeconds, true),
+		formatDurationClock(day.BalanceSeconds, true),
+	}
+	for idx, col := range timeCardColumns {
+		pdf.CellFormat(col.Width, timeCardTableRowH, values[idx], "1", 0, col.Align, fill, 0, "")
+	}
+	pdf.Ln(-1)
+}
+
+func drawTimeCardTotalsRow(pdf *fpdf.Fpdf, employee timeBankCardEmployee) {
+	pdf.SetFont(timeCardFontName, "B", 8.8)
+	pdf.SetFillColor(228, 236, 247)
+
+	labelWidth := timeCardColumnsWidth(0, 6)
+	pdf.CellFormat(labelWidth, timeCardTableRowH+0.3, "TOTAIS", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(timeCardColumns[6].Width, timeCardTableRowH+0.3, formatDurationClock(employee.WorkedSeconds, false), "1", 0, timeCardColumns[6].Align, true, 0, "")
+	pdf.CellFormat(timeCardColumns[7].Width, timeCardTableRowH+0.3, formatDurationClock(employee.ExpectedSeconds, false), "1", 0, timeCardColumns[7].Align, true, 0, "")
+	pdf.CellFormat(timeCardColumns[8].Width, timeCardTableRowH+0.3, formatDurationClock(employee.AdjustmentSeconds, true), "1", 0, timeCardColumns[8].Align, true, 0, "")
+	pdf.CellFormat(timeCardColumns[9].Width, timeCardTableRowH+0.3, formatDurationClock(employee.BalanceSeconds, true), "1", 0, timeCardColumns[9].Align, true, 0, "")
+	pdf.Ln(-1)
+}
+
+func drawTimeCardEmptyRow(pdf *fpdf.Fpdf, message string) {
+	pdf.SetFont(timeCardFontName, "", 8.5)
+	pdf.CellFormat(timeCardColumnsWidth(0, len(timeCardColumns)), timeCardTableRowH, message, "1", 1, "C", false, 0, "")
+}
+
+func timeCardColumnsWidth(start, end int) float64 {
+	width := 0.0
+	if start < 0 {
+		start = 0
+	}
+	if end > len(timeCardColumns) {
+		end = len(timeCardColumns)
+	}
+	for i := start; i < end; i++ {
+		width += timeCardColumns[i].Width
+	}
+	return width
+}
+
+func formatDateBR(v time.Time) string {
+	return v.UTC().Format("02/01/2006")
+}
+
+func formatDurationClock(seconds int64, signed bool) string {
+	sign := ""
+	totalSeconds := seconds
+	if totalSeconds < 0 {
+		totalSeconds = -totalSeconds
+		if signed {
+			sign = "-"
+		}
+	}
+
+	minutes := (totalSeconds + 30) / 60
+	hours := minutes / 60
+	restMinutes := minutes % 60
+	return fmt.Sprintf("%s%02d:%02d", sign, hours, restMinutes)
+}
+
+func nullStringOrDash(v sql.NullString) string {
+	if !v.Valid {
+		return "-"
+	}
+	return defaultOrDash(v.String)
+}
+
+func nullDateOrDash(v sql.NullTime) string {
+	if !v.Valid {
+		return "-"
+	}
+	return formatDateBR(v.Time)
+}
+
+func defaultOrDash(v string) string {
+	value := strings.TrimSpace(v)
+	if value == "" {
+		return "-"
+	}
+	return value
+}
+
+func statusLabelPT(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "active":
+		return "Ativo"
+	case "inactive":
+		return "Inativo"
+	case "terminated":
+		return "Desligado"
+	default:
+		return defaultOrDash(status)
 	}
 }
 

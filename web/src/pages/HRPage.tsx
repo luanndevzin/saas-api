@@ -445,7 +445,7 @@ export function HRPage() {
     }
   };
 
-  const exportTimeBankClosureCSV = async (closureId: number) => {
+  const exportTimeBankClosureCardsPDF = async (closureId: number) => {
     if (!token) {
       toast({ title: "Sessao expirada", description: "Faca login novamente.", variant: "error" });
       return;
@@ -454,18 +454,18 @@ export function HRPage() {
     setExportingClosureId(closureId);
     try {
       const apiBase = baseUrl.replace(/\/$/, "");
-      const res = await fetch(`${apiBase}/time-bank/closures/${closureId}/export.csv`, {
+      const res = await fetch(`${apiBase}/time-bank/closures/${closureId}/cards.pdf`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
         const message = await res.text();
-        throw new Error((message || "Falha ao exportar CSV").trim());
+        throw new Error((message || "Falha ao exportar PDF").trim());
       }
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      const fallbackName = `fechamento-banco-horas-${closureId}.csv`;
+      const fallbackName = `cartoes-ponto-fechamento-${closureId}.pdf`;
       const contentDisposition = res.headers.get("content-disposition") || "";
       const match = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
       link.href = url;
@@ -475,9 +475,9 @@ export function HRPage() {
       link.remove();
       URL.revokeObjectURL(url);
 
-      toast({ title: "CSV exportado com sucesso", variant: "success" });
+      toast({ title: "PDF de cartoes exportado com sucesso", variant: "success" });
     } catch (err: any) {
-      toast({ title: "Erro ao exportar CSV", description: err.message, variant: "error" });
+      toast({ title: "Erro ao exportar PDF", description: err.message, variant: "error" });
     } finally {
       setExportingClosureId(null);
     }
@@ -496,7 +496,7 @@ export function HRPage() {
     }
   };
 
-  const exportEmployeeTimeCardCSV = async (closureId: number, employeeId: number) => {
+  const exportEmployeeTimeCardPDF = async (closureId: number, employeeId: number) => {
     if (!token) {
       toast({ title: "Sessao expirada", description: "Faca login novamente.", variant: "error" });
       return;
@@ -505,7 +505,7 @@ export function HRPage() {
     setExportingClosureId(closureId);
     try {
       const apiBase = baseUrl.replace(/\/$/, "");
-      const res = await fetch(`${apiBase}/time-bank/closures/${closureId}/employees/${employeeId}/card.csv`, {
+      const res = await fetch(`${apiBase}/time-bank/closures/${closureId}/employees/${employeeId}/card.pdf`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -518,12 +518,12 @@ export function HRPage() {
       const contentDisposition = res.headers.get("content-disposition") || "";
       const match = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
       link.href = url;
-      link.download = match?.[1] || `cartao-ponto-${employeeId}.csv`;
+      link.download = match?.[1] || `cartao-ponto-${employeeId}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      toast({ title: "Cartao ponto exportado", variant: "success" });
+      toast({ title: "Cartao ponto em PDF exportado", variant: "success" });
     } catch (err: any) {
       toast({ title: "Erro ao exportar cartao ponto", description: err.message, variant: "error" });
     } finally {
@@ -1865,10 +1865,10 @@ export function HRPage() {
                           <Button
                             size="xs"
                             variant="outline"
-                            onClick={() => exportTimeBankClosureCSV(closure.id)}
+                            onClick={() => exportTimeBankClosureCardsPDF(closure.id)}
                             disabled={exportingClosureId === closure.id}
                           >
-                            {exportingClosureId === closure.id ? "Exportando..." : "CSV"}
+                            {exportingClosureId === closure.id ? "Exportando..." : "PDF cartoes"}
                           </Button>
                           <Button
                             size="xs"
@@ -1941,10 +1941,10 @@ export function HRPage() {
                         <Button
                           size="xs"
                           variant="outline"
-                          onClick={() => selectedClosureId && exportEmployeeTimeCardCSV(selectedClosureId, item.employee_id)}
+                          onClick={() => selectedClosureId && exportEmployeeTimeCardPDF(selectedClosureId, item.employee_id)}
                           disabled={!selectedClosureId || exportingClosureId === selectedClosureId}
                         >
-                          {exportingClosureId === selectedClosureId ? "Exportando..." : "Baixar cartao"}
+                          {exportingClosureId === selectedClosureId ? "Exportando..." : "Baixar PDF"}
                         </Button>
                       </TD>
                     </TR>

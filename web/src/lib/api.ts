@@ -420,6 +420,7 @@ function translateApiMessage(status: number, data: any) {
     [/time bank adjustment not found/i, "Ajuste de banco de horas nao encontrado."],
     [/time bank closure not found/i, "Fechamento de banco de horas nao encontrado."],
     [/employee not found in closure/i, "Colaborador nao encontrado neste fechamento."],
+    [/could not generate time card pdf/i, "Nao foi possivel gerar o PDF do cartao ponto."],
     [/allow_closed_period only for hr/i, "Somente RH pode ignorar periodo fechado na sincronizacao."],
     [/there are pending time bank adjustments in selected period/i, "Existem ajustes pendentes de aprovacao no periodo selecionado."],
     [/colaborador role must be provisioned by hr/i, "Role colaborador so pode ser provisionada pelo RH."],
