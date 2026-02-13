@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: gap:;" />
+    <title>Ponto Colaborador</title>
+    <link rel="stylesheet" href="css/index.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section id="login-screen" class="screen">
+        <div class="card">
+          <h1>Ponto do Colaborador</h1>
+          <p class="hint">Entre com seu email e senha para registrar entrada e saida.</p>
+          <form id="login-form" class="form">
+            <label>
+              API URL
+              <input id="api-url" type="url" required />
+            </label>
+            <label>
+              Email
+              <input id="email" type="email" required autocomplete="username" />
+            </label>
+            <label>
+              Senha
+              <input id="password" type="password" required autocomplete="current-password" />
+            </label>
+            <button id="login-button" type="submit">Entrar</button>
+          </form>
+          <p id="login-error" class="error" hidden></p>
+        </div>
+      </section>
+
+      <section id="clock-screen" class="screen" hidden>
+        <header class="topbar">
+          <div>
+            <h2>Meu Ponto</h2>
+            <p id="employee-name" class="hint">-</p>
+          </div>
+          <button id="logout-button" class="outline" type="button">Sair</button>
+        </header>
+
+        <div class="grid">
+          <article class="card stat">
+            <h3>Status</h3>
+            <p id="status-text">-</p>
+          </article>
+          <article class="card stat">
+            <h3>Horas hoje</h3>
+            <p id="today-hours">0.00 h</p>
+          </article>
+        </div>
+
+        <div class="card actions">
+          <button id="clock-in-button" type="button">Bater entrada</button>
+          <button id="clock-out-button" class="danger" type="button">Bater saida</button>
+          <button id="refresh-button" class="outline" type="button">Atualizar</button>
+        </div>
+
+        <article class="card">
+          <h3>Historico recente</h3>
+          <ul id="entries-list" class="entries"></ul>
+        </article>
+        <p id="clock-error" class="error" hidden></p>
+      </section>
+    </main>
+
+    <script src="cordova.js"></script>
+    <script src="js/index.js"></script>
+  </body>
+</html>

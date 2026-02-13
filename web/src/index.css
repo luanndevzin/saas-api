@@ -5,51 +5,69 @@
 
 @layer base {
   :root {
-    --background: 220 15% 6%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 8%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 10%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 191 97% 77%;
-    --primary-foreground: 222 47% 6%;
-    --secondary: 217 33% 18%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 15%;
-    --muted-foreground: 215 20% 70%;
-    --accent: 191 97% 77%;
-    --accent-foreground: 222 47% 8%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 215 27% 25%;
-    --input: 215 27% 18%;
-    --ring: 191 97% 77%;
-    --radius: 0.8rem;
+    --background: 36 82% 94%;
+    --foreground: 226 30% 16%;
+    --card: 0 0% 97%;
+    --card-foreground: 226 30% 16%;
+    --popover: 0 0% 99%;
+    --popover-foreground: 226 30% 16%;
+    --primary: 244 72% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 225 20% 93%;
+    --secondary-foreground: 226 30% 16%;
+    --muted: 225 20% 91%;
+    --muted-foreground: 226 12% 44%;
+    --accent: 40 92% 82%;
+    --accent-foreground: 226 30% 16%;
+    --destructive: 0 82% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 224 20% 82%;
+    --input: 224 24% 89%;
+    --ring: 244 72% 60%;
+    --radius: 0.95rem;
   }
 
-  * { @apply border-border; }
+  * {
+    @apply border-border;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-family: "Space Grotesk", "Segoe UI", system-ui, -apple-system, sans-serif;
     background-image:
-      radial-gradient(circle at 20% 20%, rgba(56,189,248,0.08), transparent 30%),
-      radial-gradient(circle at 80% 0%, rgba(94,92,255,0.12), transparent 25%),
-      linear-gradient(120deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+      radial-gradient(circle at 7% 88%, rgba(255, 241, 126, 0.84), transparent 36%),
+      radial-gradient(circle at 93% 87%, rgba(255, 66, 50, 0.78), transparent 36%),
+      radial-gradient(circle at 75% 42%, rgba(255, 188, 120, 0.6), transparent 44%),
+      linear-gradient(160deg, #f7f2e9 0%, #fff4df 52%, #ffe8d8 100%);
+    background-attachment: fixed;
   }
 }
 
 .container {
-  @apply mx-auto max-w-6xl px-4;
+  @apply mx-auto w-full max-w-7xl px-4;
 }
 
 .card-glass {
-  backdrop-filter: blur(8px);
-  background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+  backdrop-filter: blur(10px);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.74));
   border: 1px solid hsl(var(--border));
-  box-shadow: 0 16px 50px rgba(0,0,0,0.35);
+  box-shadow: 0 24px 60px rgba(65, 54, 36, 0.18);
 }
 
-.scrollarea::-webkit-scrollbar { width: 10px; }
-.scrollarea::-webkit-scrollbar-thumb { background: hsl(var(--muted)); border-radius: 999px; }
+.sidebar-shell {
+  backdrop-filter: blur(14px);
+  box-shadow: 0 22px 56px rgba(71, 54, 35, 0.2);
+}
 
-.shadow-card { box-shadow: 0 20px 60px rgba(0,0,0,0.35); }
+.scrollarea::-webkit-scrollbar {
+  width: 10px;
+}
+
+.scrollarea::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 999px;
+}
+
+.shadow-card {
+  box-shadow: 0 18px 42px rgba(70, 55, 32, 0.14);
+}

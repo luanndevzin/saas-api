@@ -1,10 +1,10 @@
 <?xml version='1.0' encoding='utf-8'?>
 <widget id="com.saas.controlpanel" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
-    <name>SaaSControlMobile</name>
+    <name>PontoColaborador</name>
     <description>
-        Mobile shell do SaaS Control Panel (webview Cordova).
+        Aplicativo Cordova para login e batida de ponto.
     </description>
-    <author email="team@saas-control.local" href="https://saas-web-c37d.onrender.com">
+    <author email="team@saas-control.local" href="https://diplomatic-simplicity-production-70e0.up.railway.app">
         SaaS Control Team
     </author>
     <content src="index.html" />

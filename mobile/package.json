@@ -1,11 +1,11 @@
 {
   "name": "com.saas.controlpanel",
-  "displayName": "SaaSControlMobile",
+  "displayName": "Ponto Colaborador",
   "version": "1.0.0",
-  "description": "Mobile shell Cordova para o SaaS Control Panel.",
+  "description": "Aplicativo Cordova para login e registro de ponto do colaborador.",
   "main": "index.js",
   "scripts": {
-    "prepare:web": "cd ../web && npm run cordova:prepare",
+    "prepare": "cordova prepare browser",
     "platform:add:browser": "cordova platform add browser",
     "run:browser": "cordova run browser",
     "build:browser": "cordova build browser"
@@ -16,6 +16,7 @@
   "author": "SaaS Control Team",
   "license": "Apache-2.0",
   "devDependencies": {
+    "cordova": "^12.0.0",
     "cordova-browser": "^7.0.0"
   },
   "cordova": {

@@ -25,6 +25,4 @@ kiosk/node_modules
 kiosk/.env
 mobile/platforms
 mobile/plugins
-mobile/www/*
-!mobile/www/.gitkeep
 mobile/package-lock.json

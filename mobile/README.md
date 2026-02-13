@@ -1,20 +1,26 @@
-# Mobile (Cordova)
+# Mobile (Cordova) - Ponto Colaborador
 
-Shell Cordova para executar o frontend web como app mobile.
+Aplicativo Cordova standalone com:
 
-## Testar sem celular (browser)
+- tela de login;
+- tela de bater entrada/saida;
+- historico recente de batidas.
 
-No diretório `web`:
+## Rodar no browser (sem celular)
+
+No diretorio `mobile`:
 
 ```bash
-npm run cordova:run:browser
+npm install
+npm run platform:add:browser
+npm run run:browser
 ```
 
-Esse comando:
+## Fluxo do app
 
-1. builda o web com `base=./`;
-2. copia `web/dist` para `mobile/www`;
-3. abre o app Cordova no browser.
+1. Informar `API URL` (ex.: `https://seu-backend/v1`).
+2. Fazer login com usuario de role `colaborador`.
+3. App abre a tela de ponto para registrar entrada e saida.
 
 ## Build Android (depois)
 
@@ -22,7 +28,7 @@ Prerequisitos:
 
 - JDK 17
 - Android Studio + SDK
-- Variaveis `JAVA_HOME` e `ANDROID_HOME`
+- variaveis `JAVA_HOME` e `ANDROID_HOME`
 
 Comandos (em `mobile`):
 
