@@ -663,6 +663,9 @@ export function HRPage() {
         body: {
           name: fd.get("name"),
           email: fd.get("email") || null,
+          cpf: fd.get("cpf") || null,
+          cbo: fd.get("cbo") || null,
+          ctps: fd.get("ctps") || null,
           status: fd.get("status") || null,
           hire_date: fd.get("hire_date") || null,
           salary_cents: numOrNull(fd.get("salary_cents")),
@@ -689,6 +692,9 @@ export function HRPage() {
         body: {
           name: fd.get("name") || undefined,
           email: fd.get("email") || null,
+          cpf: fd.get("cpf") || null,
+          cbo: fd.get("cbo") || null,
+          ctps: fd.get("ctps") || null,
           status: fd.get("status") || undefined,
           hire_date: fd.get("hire_date") || null,
           termination_date: fd.get("termination_date") || null,
@@ -1982,6 +1988,18 @@ export function HRPage() {
                 <Input name="email" type="email" />
               </div>
               <div>
+                <Label>CPF</Label>
+                <Input name="cpf" />
+              </div>
+              <div>
+                <Label>CBO</Label>
+                <Input name="cbo" />
+              </div>
+              <div>
+                <Label>CTPS</Label>
+                <Input name="ctps" />
+              </div>
+              <div>
                 <Label>Status</Label>
                 <Select name="status" defaultValue="">
                   <option value="">default: active</option>
@@ -2100,6 +2118,18 @@ export function HRPage() {
                   <div className="col-span-2">
                     <Label>Email</Label>
                     <Input name="email" type="email" defaultValue={selectedEmployee.email || ""} />
+                  </div>
+                  <div>
+                    <Label>CPF</Label>
+                    <Input name="cpf" defaultValue={selectedEmployee.cpf || ""} />
+                  </div>
+                  <div>
+                    <Label>CBO</Label>
+                    <Input name="cbo" defaultValue={selectedEmployee.cbo || ""} />
+                  </div>
+                  <div>
+                    <Label>CTPS</Label>
+                    <Input name="ctps" defaultValue={selectedEmployee.ctps || ""} />
                   </div>
                   <div>
                     <Label>Status</Label>
