@@ -46,6 +46,9 @@ type Employee struct {
 	EmployeeCode    string     `db:"employee_code" json:"employee_code"`
 	Name            string     `db:"name" json:"name"`
 	Email           *string    `db:"email" json:"email,omitempty"`
+	CPF             *string    `db:"cpf" json:"cpf,omitempty"`
+	CBO             *string    `db:"cbo" json:"cbo,omitempty"`
+	CTPS            *string    `db:"ctps" json:"ctps,omitempty"`
 	Status          string     `db:"status" json:"status"`
 	HireDate        *time.Time `db:"hire_date" json:"hire_date,omitempty"`
 	TerminationDate *time.Time `db:"termination_date" json:"termination_date,omitempty"`
@@ -69,6 +72,9 @@ type createPositionReq struct {
 type createEmployeeReq struct {
 	Name         string  `json:"name"`
 	Email        *string `json:"email"`
+	CPF          *string `json:"cpf"`
+	CBO          *string `json:"cbo"`
+	CTPS         *string `json:"ctps"`
 	Status       *string `json:"status"`       // active/inactive/terminated
 	HireDate     *string `json:"hire_date"`    // YYYY-MM-DD
 	SalaryCents  *int64  `json:"salary_cents"` // inteiro em centavos
@@ -80,6 +86,9 @@ type createEmployeeReq struct {
 type updateEmployeeReq struct {
 	Name            *string `json:"name"`
 	Email           *string `json:"email"`
+	CPF             *string `json:"cpf"`
+	CBO             *string `json:"cbo"`
+	CTPS            *string `json:"ctps"`
 	Status          *string `json:"status"`
 	HireDate        *string `json:"hire_date"`
 	TerminationDate *string `json:"termination_date"`
@@ -409,6 +418,9 @@ func (h *HRHandler) CreateEmployee(w http.ResponseWriter, r *http.Request) {
 			req.Email = &e
 		}
 	}
+	req.CPF = cleanPtr(req.CPF)
+	req.CBO = cleanPtr(req.CBO)
+	req.CTPS = cleanPtr(req.CTPS)
 
 	status := "active"
 	if req.Status != nil && strings.TrimSpace(*req.Status) != "" {
@@ -451,10 +463,10 @@ func (h *HRHandler) CreateEmployee(w http.ResponseWriter, r *http.Request) {
 
 	res, err := tx.Exec(`
 		INSERT INTO employees (
-			tenant_id, employee_code, name, email, status, hire_date,
+			tenant_id, employee_code, name, email, cpf, cbo, ctps, status, hire_date,
 			department_id, position_id, manager_id, salary_cents, created_by, updated_by
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		tenantID, empCode, req.Name, req.Email, status, hireDate,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		tenantID, empCode, req.Name, req.Email, req.CPF, req.CBO, req.CTPS, status, hireDate,
 		req.DepartmentID, req.PositionID, managerID, salary, userID, userID,
 	)
 	if err != nil {
@@ -465,7 +477,7 @@ func (h *HRHandler) CreateEmployee(w http.ResponseWriter, r *http.Request) {
 
 	var emp Employee
 	if err := tx.Get(&emp, `
-		SELECT id, tenant_id, employee_code, name, email, status, hire_date, termination_date,
+		SELECT id, tenant_id, employee_code, name, email, cpf, cbo, ctps, status, hire_date, termination_date,
 		       department_id, position_id, manager_id, salary_cents, created_at, updated_at
 		FROM employees
 		WHERE tenant_id=? AND id=?`, tenantID, id64); err != nil {
@@ -496,7 +508,7 @@ func (h *HRHandler) ListEmployees(w http.ResponseWriter, r *http.Request) {
 	var items []Employee
 	if status == "" {
 		if err := h.DB.Select(&items, `
-			SELECT id, tenant_id, employee_code, name, email, status, hire_date, termination_date,
+			SELECT id, tenant_id, employee_code, name, email, cpf, cbo, ctps, status, hire_date, termination_date,
 			       department_id, position_id, manager_id, salary_cents, created_at, updated_at
 			FROM employees
 			WHERE tenant_id=?
@@ -506,7 +518,7 @@ func (h *HRHandler) ListEmployees(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		if err := h.DB.Select(&items, `
-			SELECT id, tenant_id, employee_code, name, email, status, hire_date, termination_date,
+			SELECT id, tenant_id, employee_code, name, email, cpf, cbo, ctps, status, hire_date, termination_date,
 			       department_id, position_id, manager_id, salary_cents, created_at, updated_at
 			FROM employees
 			WHERE tenant_id=? AND status=?
@@ -529,7 +541,7 @@ func (h *HRHandler) GetEmployee(w http.ResponseWriter, r *http.Request) {
 
 	var emp Employee
 	if err := h.DB.Get(&emp, `
-		SELECT id, tenant_id, employee_code, name, email, status, hire_date, termination_date,
+		SELECT id, tenant_id, employee_code, name, email, cpf, cbo, ctps, status, hire_date, termination_date,
 		       department_id, position_id, manager_id, salary_cents, created_at, updated_at
 		FROM employees
 		WHERE tenant_id=? AND id=?`, tenantID, id); err != nil {
@@ -564,7 +576,7 @@ func (h *HRHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
 
 	var before Employee
 	if err := tx.Get(&before, `
-		SELECT id, tenant_id, employee_code, name, email, status, hire_date, termination_date,
+		SELECT id, tenant_id, employee_code, name, email, cpf, cbo, ctps, status, hire_date, termination_date,
 		       department_id, position_id, manager_id, salary_cents, created_at, updated_at
 		FROM employees WHERE tenant_id=? AND id=?`, tenantID, id); err != nil {
 		httpError(w, "employee not found", http.StatusNotFound)
@@ -582,6 +594,15 @@ func (h *HRHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Email != nil {
 		after.Email = cleanPtrLower(req.Email)
+	}
+	if req.CPF != nil {
+		after.CPF = cleanPtr(req.CPF)
+	}
+	if req.CBO != nil {
+		after.CBO = cleanPtr(req.CBO)
+	}
+	if req.CTPS != nil {
+		after.CTPS = cleanPtr(req.CTPS)
 	}
 	if req.HireDate != nil {
 		if strings.TrimSpace(*req.HireDate) == "" {
@@ -641,10 +662,10 @@ func (h *HRHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
 	if _, err := tx.Exec(`
 		UPDATE employees
 		SET name=?, email=?, status=?, hire_date=?, termination_date=?,
-		    department_id=?, position_id=?, manager_id=?, salary_cents=?, updated_by=?
+		    cpf=?, cbo=?, ctps=?, department_id=?, position_id=?, manager_id=?, salary_cents=?, updated_by=?
 		WHERE tenant_id=? AND id=?`,
 		after.Name, after.Email, after.Status, after.HireDate, after.TerminationDate,
-		after.DepartmentID, after.PositionID, after.ManagerID, after.SalaryCents, userID,
+		after.CPF, after.CBO, after.CTPS, after.DepartmentID, after.PositionID, after.ManagerID, after.SalaryCents, userID,
 		tenantID, id,
 	); err != nil {
 		httpError(w, "db update error", http.StatusInternalServerError)
@@ -653,7 +674,7 @@ func (h *HRHandler) UpdateEmployee(w http.ResponseWriter, r *http.Request) {
 
 	var persisted Employee
 	_ = tx.Get(&persisted, `
-		SELECT id, tenant_id, employee_code, name, email, status, hire_date, termination_date,
+		SELECT id, tenant_id, employee_code, name, email, cpf, cbo, ctps, status, hire_date, termination_date,
 		       department_id, position_id, manager_id, salary_cents, created_at, updated_at
 		FROM employees WHERE tenant_id=? AND id=?`, tenantID, id)
 
@@ -697,7 +718,7 @@ func (h *HRHandler) UpdateEmployeeStatus(w http.ResponseWriter, r *http.Request)
 
 	var before Employee
 	if err := tx.Get(&before, `
-		SELECT id, tenant_id, employee_code, name, email, status, hire_date, termination_date,
+		SELECT id, tenant_id, employee_code, name, email, cpf, cbo, ctps, status, hire_date, termination_date,
 		       department_id, position_id, manager_id, salary_cents, created_at, updated_at
 		FROM employees WHERE tenant_id=? AND id=?`, tenantID, id); err != nil {
 		httpError(w, "employee not found", http.StatusNotFound)
@@ -728,7 +749,7 @@ func (h *HRHandler) UpdateEmployeeStatus(w http.ResponseWriter, r *http.Request)
 
 	var after Employee
 	_ = tx.Get(&after, `
-		SELECT id, tenant_id, employee_code, name, email, status, hire_date, termination_date,
+		SELECT id, tenant_id, employee_code, name, email, cpf, cbo, ctps, status, hire_date, termination_date,
 		       department_id, position_id, manager_id, salary_cents, created_at, updated_at
 		FROM employees WHERE tenant_id=? AND id=?`, tenantID, id)
 

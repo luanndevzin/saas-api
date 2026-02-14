@@ -35,6 +35,9 @@ export interface Employee {
   employee_code: string;
   name: string;
   email?: string | null;
+  cpf?: string | null;
+  cbo?: string | null;
+  ctps?: string | null;
   status: string;
   hire_date?: string | null;
   termination_date?: string | null;

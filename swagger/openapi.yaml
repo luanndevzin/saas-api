@@ -48,6 +48,9 @@ components:
         employee_code: { type: string }
         name: { type: string }
         email: { type: string, nullable: true }
+        cpf: { type: string, nullable: true }
+        cbo: { type: string, nullable: true }
+        ctps: { type: string, nullable: true }
         status: { type: string }
         hire_date: { type: string, format: date, nullable: true }
         department_id: { type: integer, nullable: true }
@@ -254,6 +257,9 @@ paths:
               properties:
                 name: { type: string }
                 email: { type: string }
+                cpf: { type: string }
+                cbo: { type: string }
+                ctps: { type: string }
                 status: { type: string }
                 hire_date: { type: string, format: date }
                 salary_cents: { type: integer }
