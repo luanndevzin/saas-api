@@ -192,7 +192,7 @@ export function DashboardPage() {
 
       {!data || !derived ? (
         <Card className="p-6 text-sm text-muted-foreground">
-          Nenhum dado carregado. Verifique o tenant e as permissoes do usuario.
+          Nenhum dado carregado. Verifique a empresa e as permissoes do usuario.
         </Card>
       ) : (
         <>

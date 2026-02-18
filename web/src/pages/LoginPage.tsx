@@ -64,7 +64,7 @@ export function LoginPage() {
             <Input id="password" name="password" type="password" required placeholder="••••••••" autoComplete="current-password" />
           </div>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Use as credenciais fornecidas pelo owner do tenant.</span>
+            <span>Use as credenciais fornecidas pelo owner da empresa.</span>
             <Link to="mailto:suporte@saas.com" className="text-primary font-semibold">Precisa de ajuda?</Link>
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
@@ -80,7 +80,7 @@ export function LoginPage() {
         <Card className="bg-card/70 border-border/60 p-4">
           <div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck className="h-4 w-4 text-primary" /> Segurança</div>
           <ul className="mt-2 space-y-1 text-sm text-muted-foreground list-disc list-inside">
-            <li>Isolamento por tenant e roles minimas (owner, finance, hr, colaborador).</li>
+            <li>Isolamento por empresa e roles minimas (owner, finance, hr, colaborador).</li>
             <li>JWT com expiração configurável e rotação ao renovar sessão.</li>
             <li>Audit trail para eventos financeiros e de RH.</li>
           </ul>

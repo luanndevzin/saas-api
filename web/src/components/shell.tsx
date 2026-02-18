@@ -102,7 +102,7 @@ const navItems: NavItem[] = [
     to: "/members",
     icon: <Users className="h-4 w-4" />,
     section: "Admin",
-    description: "Governanca de acesso por tenant",
+    description: "Governanca de acesso por empresa",
     roles: ["owner"],
   },
 ];
@@ -133,6 +133,28 @@ function roleLabel(role?: string) {
     default:
       return "Visitante";
   }
+}
+
+function workspaceLabel(tenantName?: string, tenantID?: number) {
+  const name = (tenantName || "").trim();
+  if (name) return name;
+  if (tenantID) return `Empresa ${tenantID}`;
+  return "Workspace";
+}
+
+function workspaceBadge(tenantName?: string, tenantID?: number) {
+  const name = (tenantName || "").trim();
+  if (name) {
+    const initials = name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || "")
+      .join("");
+    if (initials) return initials;
+  }
+  if (tenantID) return `T${tenantID}`;
+  return "SC";
 }
 
 export function Shell({ children }: { children: ReactNode }) {
@@ -257,10 +279,10 @@ export function Shell({ children }: { children: ReactNode }) {
             <Group justify="space-between" wrap="nowrap">
               <Group gap="sm" wrap="nowrap">
                 <ThemeIcon size={34} radius="xl" variant="gradient" gradient={{ from: "cyan", to: "blue" }}>
-                  <Text fw={700} size="xs">{me ? `T${me.tenantId}` : "SC"}</Text>
+                  <Text fw={700} size="xs">{workspaceBadge(me?.tenantName, me?.tenantId)}</Text>
                 </ThemeIcon>
                 <Box>
-                  <Text size="sm" fw={700}>{me ? `Tenant ${me.tenantId}` : "Workspace"}</Text>
+                  <Text size="sm" fw={700}>{workspaceLabel(me?.tenantName, me?.tenantId)}</Text>
                   <Group gap={4} align="center">
                     <CircleDot className="h-3 w-3 text-emerald-500 fill-emerald-500" />
                     <Text size="xs" c="dimmed">{roleLabel(me?.role)}</Text>

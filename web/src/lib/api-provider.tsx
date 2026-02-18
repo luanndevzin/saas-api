@@ -9,6 +9,7 @@ const DEFAULT_API_URL =
 interface MeInfo {
   userId: number;
   tenantId: number;
+  tenantName?: string;
   role: UserRole;
 }
 
@@ -39,8 +40,8 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
   const refreshMe = useCallback(async () => {
     if (!token) { setMe(null); return; }
     try {
-      const res = await apiFetch<{ user_id: number; tenant_id: number; role: UserRole }>(config, "/me");
-      setMe({ userId: res.user_id, tenantId: res.tenant_id, role: res.role });
+      const res = await apiFetch<{ user_id: number; tenant_id: number; tenant_name?: string; role: UserRole }>(config, "/me");
+      setMe({ userId: res.user_id, tenantId: res.tenant_id, tenantName: res.tenant_name, role: res.role });
     } catch (err) {
       setMe(null);
     }
@@ -55,7 +56,7 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
       auth: false,
     });
     setToken(data.access_token);
-    setMe({ userId: data.user_id, tenantId: data.tenant_id, role: data.role });
+    setMe({ userId: data.user_id, tenantId: data.tenant_id, tenantName: data.tenant_name, role: data.role });
     return data;
   }, [baseUrl, setToken]);
 
@@ -66,7 +67,7 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
       auth: false,
     });
     setToken(data.access_token);
-    setMe({ userId: data.user_id, tenantId: data.tenant_id, role: data.role });
+    setMe({ userId: data.user_id, tenantId: data.tenant_id, tenantName: data.tenant_name, role: data.role });
     return data;
   }, [baseUrl, setToken]);
 

@@ -67,7 +67,7 @@ export function MembersPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Membros" subtitle="Gerencie roles e acessos do tenant." />
+      <PageHeader title="Membros" subtitle="Gerencie roles e acessos da empresa." />
 
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
         <Card>

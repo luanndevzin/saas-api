@@ -7,7 +7,7 @@ import { ArrowRight, Check, Sparkles, Shield, Zap, Plug, Cpu } from "lucide-reac
 const highlights = [
   { title: "Finanças unificadas", desc: "AP/AR com centros de custo, trilha de aprovação e eventos." },
   { title: "Pessoas", desc: "Departamentos, cargos, colaboradores e custos consolidados." },
-  { title: "Governança", desc: "Tenant isolado, roles mínimas e trilha de auditoria completa." },
+  { title: "Governança", desc: "Empresa isolada, roles mínimas e trilha de auditoria completa." },
 ];
 
 const steps = [
@@ -127,7 +127,7 @@ export function LandingPage() {
             </div>
             <Card className="bg-muted/10 border-border/60 p-4 space-y-2">
               <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Shield className="h-4 w-4 text-primary" /> Segurança de ponta a ponta</div>
-              <p className="text-sm text-muted-foreground">Isolamento por tenant, roles e auditoria. SSO e SLA disponíveis para Enterprise.</p>
+              <p className="text-sm text-muted-foreground">Isolamento por empresa, roles e auditoria. SSO e SLA disponíveis para Enterprise.</p>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline">SSO opcional</Badge>
                 <Badge variant="outline">SLA sob contrato</Badge>

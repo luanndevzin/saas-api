@@ -3,6 +3,7 @@ export type UserRole = "owner" | "hr" | "finance" | "colaborador" | "member";
 export interface AuthResponse {
   access_token: string;
   tenant_id: number;
+  tenant_name?: string;
   user_id: number;
   role: UserRole;
 }
@@ -427,7 +428,7 @@ function translateApiMessage(status: number, data: any) {
     [/allow_closed_period only for hr/i, "Somente RH pode ignorar periodo fechado na sincronizacao."],
     [/there are pending time bank adjustments in selected period/i, "Existem ajustes pendentes de aprovacao no periodo selecionado."],
     [/colaborador role must be provisioned by hr/i, "Role colaborador so pode ser provisionada pelo RH."],
-    [/user already has elevated role/i, "Este usuario ja possui perfil administrativo neste tenant."],
+    [/user already has elevated role/i, "Este usuario ja possui perfil administrativo nesta empresa."],
     [/user already linked to another employee/i, "Este usuario ja esta vinculado a outro colaborador."],
     [/could not link employee account/i, "Nao foi possivel vincular o colaborador ao usuario."],
     [/unknown field/i, "Campo nao permitido no corpo da requisicao."],

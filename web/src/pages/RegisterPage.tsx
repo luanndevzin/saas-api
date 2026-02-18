@@ -91,7 +91,7 @@ export function RegisterPage() {
         <Card className="bg-card/70 border-border/60 p-4 space-y-3">
           <div className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4 text-primary" /> Benefícios imediatos</div>
           <div className="grid gap-2 md:grid-cols-2 text-sm text-muted-foreground">
-            {["Dashboard financeiro", "Aprovação em dois níveis", "Multi-tenant e roles", "Auditoria de eventos"].map((item) => (
+            {["Dashboard financeiro", "Aprovação em dois níveis", "Multi-empresa e roles", "Auditoria de eventos"].map((item) => (
               <span key={item} className="flex items-center gap-2"><Check className="h-4 w-4 text-primary" /> {item}</span>
             ))}
           </div>

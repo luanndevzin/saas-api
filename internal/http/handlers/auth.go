@@ -37,6 +37,7 @@ type loginReq struct {
 type authResp struct {
 	AccessToken string `json:"access_token"`
 	TenantID    uint64 `json:"tenant_id"`
+	TenantName  string `json:"tenant_name,omitempty"`
 	UserID      uint64 `json:"user_id"`
 	Role        string `json:"role"`
 }
@@ -117,6 +118,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, authResp{
 		AccessToken: token,
 		TenantID:    tenantID,
+		TenantName:  req.CompanyName,
 		UserID:      userID,
 		Role:        "owner",
 	})
@@ -155,10 +157,17 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	// Pega um tenant padrão do usuário (primeiro). Depois você pode deixar escolher.
 	var m struct {
-		TenantID uint64 `db:"tenant_id"`
-		Role     string `db:"role"`
+		TenantID   uint64 `db:"tenant_id"`
+		TenantName string `db:"tenant_name"`
+		Role       string `db:"role"`
 	}
-	err = h.DB.Get(&m, `SELECT tenant_id, role FROM memberships WHERE user_id = ? ORDER BY id ASC LIMIT 1`, user.ID)
+	err = h.DB.Get(&m, `
+		SELECT m.tenant_id, t.name AS tenant_name, m.role
+		FROM memberships m
+		INNER JOIN tenants t ON t.id = m.tenant_id
+		WHERE m.user_id = ?
+		ORDER BY m.id ASC
+		LIMIT 1`, user.ID)
 	if err != nil {
 		http.Error(w, "no tenant membership", http.StatusForbidden)
 		return
@@ -174,16 +183,22 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, authResp{
 		AccessToken: token,
 		TenantID:    m.TenantID,
+		TenantName:  m.TenantName,
 		UserID:      user.ID,
 		Role:        m.Role,
 	})
 }
 
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
+	tenantID := mw.GetTenantID(r.Context())
+	tenantName := ""
+	_ = h.DB.Get(&tenantName, `SELECT name FROM tenants WHERE id=? LIMIT 1`, tenantID)
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"user_id":   mw.GetUserID(r.Context()),
-		"tenant_id": mw.GetTenantID(r.Context()),
-		"role":      normalizeRole(mw.GetRole(r.Context())),
+		"user_id":     mw.GetUserID(r.Context()),
+		"tenant_id":   tenantID,
+		"tenant_name": tenantName,
+		"role":        normalizeRole(mw.GetRole(r.Context())),
 	})
 }
 
