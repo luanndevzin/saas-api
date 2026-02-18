@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+﻿import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useApi } from "../lib/api-provider";
 import {
@@ -34,6 +34,9 @@ import { Badge } from "../components/ui/badge";
 import { Textarea } from "../components/ui/textarea";
 import { formatCents, formatDate, formatDateTime } from "../lib/utils";
 import { PageHeader } from "../components/page-header";
+import { StructureTab } from "./hr/structure-tab";
+import { TimeClockTab } from "./hr/time-clock-tab";
+import { TimeOffTab } from "./hr/time-off-tab";
 
 type Tab = "estrutura" | "colaboradores" | "folgas" | "ponto" | "banco";
 
@@ -41,13 +44,6 @@ const statusColors: Record<string, "default" | "success" | "warning" | "outline"
   active: "success",
   inactive: "outline",
   terminated: "warning",
-};
-
-const requestColors: Record<string, "default" | "success" | "warning" | "outline"> = {
-  pending: "warning",
-  approved: "success",
-  rejected: "outline",
-  canceled: "outline",
 };
 
 const adjustmentStatusColors: Record<string, "default" | "success" | "warning" | "outline"> = {
@@ -754,7 +750,7 @@ export function HRPage() {
           note: fd.get("note") || null,
         },
       });
-      toast({ title: "Histórico salvo", variant: "success" });
+      toast({ title: "HistÃ³rico salvo", variant: "success" });
       e.currentTarget.reset();
       loadEmployeeExtras(selectedEmployee.id);
       loadEmployees();
@@ -776,7 +772,7 @@ export function HRPage() {
           cost_cents: numOrNull(fd.get("cost_cents")) ?? 0,
         },
       });
-      toast({ title: "Benefício criado", variant: "success" });
+      toast({ title: "BenefÃ­cio criado", variant: "success" });
       e.currentTarget.reset();
       loadBenefits();
     } catch (err: any) {
@@ -796,7 +792,7 @@ export function HRPage() {
           effective_date: fd.get("effective_date") || null,
         },
       });
-      toast({ title: "Benefício vinculado", variant: "success" });
+      toast({ title: "BenefÃ­cio vinculado", variant: "success" });
       e.currentTarget.reset();
       loadEmployeeExtras(selectedEmployee.id);
     } catch (err: any) {
@@ -808,7 +804,7 @@ export function HRPage() {
     if (!selectedEmployee) return;
     try {
       await request(`/employees/${selectedEmployee.id}/benefits/${benefitId}`, { method: "DELETE" });
-      toast({ title: "Benefício removido", variant: "success" });
+      toast({ title: "BenefÃ­cio removido", variant: "success" });
       loadEmployeeExtras(selectedEmployee.id);
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "error" });
@@ -872,7 +868,7 @@ export function HRPage() {
           reason: fd.get("reason") || null,
         },
       });
-      toast({ title: "Solicitação criado", variant: "success" });
+      toast({ title: "SolicitaÃ§Ã£o criado", variant: "success" });
       e.currentTarget.reset();
       loadTimeOff();
     } catch (err: any) {
@@ -992,532 +988,58 @@ export function HRPage() {
       />
 
       {tab === "estrutura" && (
-        <div className="grid gap-4 lg:grid-cols-4">
-          <Card id="form-departamentos">
-            <CardHeader className="mb-3">
-              <CardTitle>Departamentos</CardTitle>
-              <CardDescription>Criar + listar</CardDescription>
-            </CardHeader>
-            <form className="space-y-2" onSubmit={createDept}>
-              <Label>Nome</Label>
-              <Input name="name" required />
-              <Label>Código</Label>
-              <Input name="code" placeholder="Opcional" />
-              <Button type="submit" className="w-full">
-                Criar
-              </Button>
-            </form>
-            <div className="mt-4 max-h-64 space-y-2 overflow-auto pr-1 text-sm">
-              {departments.map((d) => (
-                <div key={d.id} className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2">
-                  <div className="font-semibold">{d.name}</div>
-                  {d.code && <div className="text-xs text-muted-foreground">{d.code}</div>}
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card id="form-cargos">
-            <CardHeader className="mb-3">
-              <CardTitle>Cargos</CardTitle>
-              <CardDescription>Vincule a um departamento</CardDescription>
-            </CardHeader>
-            <form className="space-y-2" onSubmit={createPosition}>
-              <Label>Título</Label>
-              <Input name="title" required />
-              <Label>Nível</Label>
-              <Input name="level" placeholder="Senior, Pleno..." />
-              <Label>Departamento</Label>
-              <Select name="department_id" defaultValue="">
-                <option value="">(opcional)</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </Select>
-              <Button type="submit" className="w-full">
-                Criar
-              </Button>
-            </form>
-            <div className="mt-4 max-h-64 overflow-auto pr-1 text-sm">
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Título</TH>
-                    <TH>Depto</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {positions.map((p) => (
-                    <TR key={p.id}>
-                      <TD>{p.title}</TD>
-                      <TD>{p.department_id ? deptMap[p.department_id] : "-"}</TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
-            </div>
-          </Card>
-
-          <Card id="form-locais">
-            <CardHeader className="mb-3">
-              <CardTitle>Locais</CardTitle>
-              <CardDescription>Filiais, remoto, hubs</CardDescription>
-            </CardHeader>
-            <form className="grid grid-cols-2 gap-2" onSubmit={createLocation}>
-              <div className="col-span-2">
-                <Label>Nome</Label>
-                <Input name="name" required />
-              </div>
-              <div>
-                <Label>Código</Label>
-                <Input name="code" />
-              </div>
-              <div>
-                <Label>Tipo</Label>
-                <Input name="kind" placeholder="office, remoto..." />
-              </div>
-              <div>
-                <Label>País</Label>
-                <Input name="country" />
-              </div>
-              <div>
-                <Label>Estado</Label>
-                <Input name="state" />
-              </div>
-              <div>
-                <Label>Cidade</Label>
-                <Input name="city" />
-              </div>
-              <div className="col-span-2">
-                <Button type="submit" className="w-full">
-                  Criar
-                </Button>
-              </div>
-            </form>
-            <div className="mt-3 max-h-52 overflow-auto pr-1 text-sm space-y-1">
-              {locations.map((l) => (
-                <div key={l.id} className="rounded border border-border/70 px-3 py-2">
-                  <div className="font-semibold">{l.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {[l.city, l.state, l.country].filter(Boolean).join(" / ") || "—"}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card id="form-times">
-            <CardHeader className="mb-3">
-              <CardTitle>Times</CardTitle>
-              <CardDescription>Organograma leve</CardDescription>
-            </CardHeader>
-            <form className="space-y-2" onSubmit={createTeam}>
-              <Label>Nome</Label>
-              <Input name="name" required />
-              <Label>Departamento</Label>
-              <Select name="department_id" defaultValue="">
-                <option value="">(opcional)</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </Select>
-              <Label>Manager</Label>
-              <Select name="manager_employee_id" defaultValue="">
-                <option value="">(opcional)</option>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                  </option>
-                ))}
-              </Select>
-              <Label>Local</Label>
-              <Select name="location_id" defaultValue="">
-                <option value="">(opcional)</option>
-                {locations.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </Select>
-              <Button type="submit" className="w-full">
-                Criar
-              </Button>
-            </form>
-            <div className="mt-4 max-h-48 overflow-auto pr-1 text-sm space-y-1">
-              {teams.map((t) => (
-                <div key={t.id} className="rounded border border-border/70 px-3 py-2">
-                  <div className="font-semibold">{t.name}</div>
-                  <div className="text-xs text-muted-foreground flex flex-col gap-0.5">
-                    <span>Depto: {t.department_id ? deptMap[t.department_id] : "-"}</span>
-                    <span>Manager: {t.manager_employee_id ? empMap[t.manager_employee_id] : "-"}</span>
-                    <span>Local: {t.location_id ? locations.find((l) => l.id === t.location_id)?.name : "-"}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
+        <StructureTab
+          departments={departments}
+          positions={positions}
+          locations={locations}
+          teams={teams}
+          employees={employees}
+          deptMap={deptMap}
+          empMap={empMap}
+          onCreateDepartment={createDept}
+          onCreatePosition={createPosition}
+          onCreateLocation={createLocation}
+          onCreateTeam={createTeam}
+        />
       )}
 
       {tab === "folgas" && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card id="form-beneficios-catalogo">
-            <CardHeader className="mb-2">
-              <CardTitle>Benefícios (catálogo)</CardTitle>
-              <CardDescription>Planos de saúde, VR, etc.</CardDescription>
-            </CardHeader>
-            <form className="grid grid-cols-2 gap-2 px-4 pb-4" onSubmit={createBenefit}>
-              <div className="col-span-2">
-                <Label>Nome</Label>
-                <Input name="name" required />
-              </div>
-              <div>
-                <Label>Fornecedor</Label>
-                <Input name="provider" />
-              </div>
-              <div>
-                <Label>Nível</Label>
-                <Input name="coverage_level" />
-              </div>
-              <div>
-                <Label>Custo (centavos)</Label>
-                <Input name="cost_cents" type="number" min={0} />
-              </div>
-              <div className="col-span-2">
-                <Button type="submit" className="w-full">
-                  Adicionar
-                </Button>
-              </div>
-            </form>
-            <div className="max-h-64 overflow-auto px-4 pb-4 text-sm space-y-2">
-              {benefits.map((b) => (
-                <div key={b.id} className="rounded border border-border/70 px-3 py-2">
-                  <div className="font-semibold">{b.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {b.provider || "—"} · {formatCents(b.cost_cents)} · {b.coverage_level || "-"}
-                  </div>
-                </div>
-              ))}
-              {benefits.length === 0 && <div className="text-muted-foreground">Nenhum benefício cadastrado.</div>}
-            </div>
-          </Card>
-
-          <Card id="form-tipos-folga">
-            <CardHeader className="mb-2">
-              <CardTitle>Tipos de folga</CardTitle>
-              <CardDescription>Criar políticas (férias, atestado...)</CardDescription>
-            </CardHeader>
-            <form className="grid grid-cols-2 gap-2 px-4 pb-4" onSubmit={createTimeOffType}>
-              <div className="col-span-2">
-                <Label>Nome</Label>
-                <Input name="name" required />
-              </div>
-              <div className="col-span-2">
-                <Label>Descrição</Label>
-                <Textarea name="description" rows={2} />
-              </div>
-              <div>
-                <Label>Aprovação?</Label>
-                <Select name="requires_approval" defaultValue="true">
-                  <option value="true">Sim</option>
-                  <option value="false">Não</option>
-                </Select>
-              </div>
-              <div className="col-span-2">
-                <Button type="submit" className="w-full">
-                  Salvar
-                </Button>
-              </div>
-            </form>
-            <div className="max-h-64 overflow-auto px-4 pb-4 text-sm space-y-1">
-              {timeOffTypes.map((t) => (
-                <div key={t.id} className="rounded border border-border/70 px-3 py-2">
-                  <div className="font-semibold">{t.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {t.description || "Sem descrição"} · {t.requires_approval ? "Requer aprovação" : "Auto-aprovado"}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card id="form-solicitacoes-folga" className="lg:col-span-2">
-            <CardHeader className="mb-2">
-              <CardTitle>Solicitações de folga/licença</CardTitle>
-              <CardDescription>Criar, aprovar, rejeitar, cancelar</CardDescription>
-            </CardHeader>
-            <form className="grid grid-cols-5 gap-3 px-4 pb-4" onSubmit={createTimeOffRequest}>
-              <div>
-                <Label>Colaborador</Label>
-                <Select name="employee_id" defaultValue="" required>
-                  <option value="" disabled>
-                    Selecione
-                  </option>
-                  {employees.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <Label>Tipo</Label>
-                <Select name="type_id" defaultValue="" required>
-                  <option value="" disabled>
-                    Selecione
-                  </option>
-                  {timeOffTypes.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <Label>Início</Label>
-                <Input name="start_date" type="date" required />
-              </div>
-              <div>
-                <Label>Fim</Label>
-                <Input name="end_date" type="date" required />
-              </div>
-              <div className="col-span-2">
-                <Label>Motivo</Label>
-                <Textarea name="reason" rows={1} />
-              </div>
-              <div className="col-span-5">
-                <Button type="submit">Criar solicitação</Button>
-              </div>
-            </form>
-
-            <div className="overflow-auto px-4 pb-4">
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Colaborador</TH>
-                    <TH>Tipo</TH>
-                    <TH>Período</TH>
-                    <TH>Status</TH>
-                    <TH>Ações</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {timeOffRequests.map((r) => (
-                    <TR key={r.id}>
-                      <TD>
-                        <div className="font-semibold">{empMap[r.employee_id] || `#${r.employee_id}`}</div>
-                        <div className="text-xs text-muted-foreground">{r.reason}</div>
-                      </TD>
-                      <TD>{timeOffTypes.find((t) => t.id === r.type_id)?.name || `#${r.type_id}`}</TD>
-                      <TD>
-                        {formatDate(r.start_date)} → {formatDate(r.end_date)}
-                      </TD>
-                      <TD>
-                        <Badge variant={requestColors[r.status] || "default"}>{r.status}</Badge>
-                      </TD>
-                      <TD className="space-x-1">
-                        {r.status === "pending" && (
-                          <>
-                            <Button size="xs" variant="outline" onClick={() => changeRequestStatus(r, "approve")}>
-                              Aprovar
-                            </Button>
-                            <Button size="xs" variant="outline" onClick={() => changeRequestStatus(r, "reject")}>
-                              Rejeitar
-                            </Button>
-                            <Button size="xs" variant="ghost" onClick={() => changeRequestStatus(r, "cancel")}>
-                              Cancelar
-                            </Button>
-                          </>
-                        )}
-                        {r.status === "approved" && (
-                          <Button size="xs" variant="ghost" onClick={() => changeRequestStatus(r, "cancel")}>
-                            Cancelar
-                          </Button>
-                        )}
-                      </TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
-            </div>
-          </Card>
-        </div>
+        <TimeOffTab
+          benefits={benefits}
+          timeOffTypes={timeOffTypes}
+          employees={employees}
+          timeOffRequests={timeOffRequests}
+          empMap={empMap}
+          onCreateBenefit={createBenefit}
+          onCreateTimeOffType={createTimeOffType}
+          onCreateTimeOffRequest={createTimeOffRequest}
+          onChangeRequestStatus={changeRequestStatus}
+        />
       )}
 
       {tab === "ponto" && (
-        <div className="grid gap-4 xl:grid-cols-3">
-          <Card id="form-clockify-config">
-            <CardHeader className="mb-2">
-              <CardTitle>Integracao Clockify</CardTitle>
-              <CardDescription>Conecte a API gratuita para importar batidas.</CardDescription>
-            </CardHeader>
-            <form className="space-y-3 px-4 pb-4" onSubmit={saveClockifyConfig}>
-              <div>
-                <Label>Workspace ID</Label>
-                <Input name="workspace_id" defaultValue={clockifyConfig.workspace_id || ""} required />
-              </div>
-              <div>
-                <Label>API Key</Label>
-                <Input
-                  name="api_key"
-                  type="password"
-                  placeholder={clockifyConfig.api_key_masked || "Cole a API key do Clockify"}
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={savingClockify}>
-                {savingClockify ? "Salvando..." : "Salvar integracao"}
-              </Button>
-            </form>
-            <div className="px-4 pb-4 text-xs text-muted-foreground space-y-1">
-              <div>Status: {clockifyConfig.configured ? "configurado" : "nao configurado"}</div>
-              {clockifyConfig.api_key_masked && <div>API Key: {clockifyConfig.api_key_masked}</div>}
-              {clockifyConfig.updated_at && <div>Atualizado em: {formatDateTime(clockifyConfig.updated_at)}</div>}
-              {clockifyStatus.last_sync_at && <div>Ultima sincronizacao: {formatDateTime(clockifyStatus.last_sync_at)}</div>}
-              <div>Colaboradores ativos: {clockifyStatus.active_employees}</div>
-              <div>Colaboradores mapeados: {clockifyStatus.mapped_employees}</div>
-              <div>Ativos sem mapeamento: {clockifyStatus.active_unmapped_employees}</div>
-            </div>
-          </Card>
-
-          <Card id="form-clockify-sync">
-            <CardHeader className="mb-2">
-              <CardTitle>Sincronizar batidas</CardTitle>
-              <CardDescription>Importe periodo e atualize o historico local.</CardDescription>
-            </CardHeader>
-            <form className="space-y-3 px-4 pb-4" onSubmit={syncClockify}>
-              <div>
-                <Label>Inicio</Label>
-                <Input
-                  name="start_date"
-                  type="date"
-                  value={entriesFilterStart}
-                  onChange={(e) => setEntriesFilterStart(e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <Label>Fim</Label>
-                <Input
-                  name="end_date"
-                  type="date"
-                  value={entriesFilterEnd}
-                  onChange={(e) => setEntriesFilterEnd(e.target.value)}
-                  required
-                />
-              </div>
-              {me?.role === "hr" && (
-                <div>
-                  <Label>Permitir alterar periodo fechado</Label>
-                  <Select
-                    value={allowClosedClockifySync ? "1" : "0"}
-                    onChange={(e) => setAllowClosedClockifySync(e.target.value === "1")}
-                  >
-                    <option value="0">Nao (recomendado)</option>
-                    <option value="1">Sim (somente excecao RH)</option>
-                  </Select>
-                </div>
-              )}
-              <Button type="submit" className="w-full" disabled={syncingClockify || !clockifyConfig.configured}>
-                {syncingClockify ? "Sincronizando..." : "Sincronizar com Clockify"}
-              </Button>
-              <Button type="button" className="w-full" variant="outline" onClick={syncInitial30Days} disabled={syncingClockify || !clockifyConfig.configured}>
-                Carga inicial (30 dias)
-              </Button>
-              <Button type="button" className="w-full" variant="outline" onClick={refreshTimeEntries}>
-                Recarregar historico
-              </Button>
-            </form>
-
-            {clockifySyncResult && (
-              <div className="space-y-1 px-4 pb-4 text-xs text-muted-foreground">
-                <div>Periodo: {clockifySyncResult.range_start} ate {clockifySyncResult.range_end}</div>
-                <div>Usuarios no workspace: {clockifySyncResult.users_found}</div>
-                <div>Colaboradores mapeados: {clockifySyncResult.employees_mapped}</div>
-                <div>Batidas processadas: {clockifySyncResult.entries_processed}</div>
-                <div>Batidas gravadas: {clockifySyncResult.entries_upserted}</div>
-                <div>Batidas ignoradas por periodo fechado: {clockifySyncResult.entries_skipped_closed || 0}</div>
-              </div>
-            )}
-
-            {clockifyStatus.active_unmapped_employees > 0 && (
-              <div className="px-4 pb-4 text-xs text-amber-200 space-y-1">
-                <div className="font-semibold">Atencao: colaboradores sem mapeamento</div>
-                {clockifyStatus.unmapped_employees_preview.slice(0, 5).map((item) => (
-                  <div key={item.employee_id}>
-                    #{item.employee_id} {item.name} {item.email ? `(${item.email})` : "(sem email)"}
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          <Card id="form-clockify-entries" className="xl:col-span-3">
-            <CardHeader className="mb-2">
-              <CardTitle>Historico de batidas</CardTitle>
-              <CardDescription>Leitura local do que foi sincronizado do Clockify.</CardDescription>
-            </CardHeader>
-            <div className="grid gap-2 px-4 pb-4 md:grid-cols-4">
-              <div className="rounded border border-border/70 bg-muted/20 px-3 py-2 text-sm">
-                <div className="text-xs text-muted-foreground">Registros</div>
-                <div className="text-lg font-semibold">{timeEntries.length}</div>
-              </div>
-              <div className="rounded border border-border/70 bg-muted/20 px-3 py-2 text-sm">
-                <div className="text-xs text-muted-foreground">Horas no periodo</div>
-                <div className="text-lg font-semibold">{totalSyncedHours} h</div>
-              </div>
-              <div className="rounded border border-border/70 bg-muted/20 px-3 py-2 text-sm">
-                <div className="text-xs text-muted-foreground">Em andamento</div>
-                <div className="text-lg font-semibold">{runningEntriesCount}</div>
-              </div>
-              <div className="rounded border border-border/70 bg-muted/20 px-3 py-2 text-sm">
-                <div className="text-xs text-muted-foreground">Ultimos 7 dias</div>
-                <div className="text-lg font-semibold">{clockifyStatus.entries_last_7_days}</div>
-              </div>
-            </div>
-            <div className="overflow-auto px-4 pb-4">
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Colaborador</TH>
-                    <TH>Inicio</TH>
-                    <TH>Fim</TH>
-                    <TH>Duracao</TH>
-                    <TH>Descricao</TH>
-                    <TH>Status</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {timeEntries.map((entry) => (
-                    <TR key={entry.id}>
-                      <TD>{entry.employee_id ? empMap[entry.employee_id] || `#${entry.employee_id}` : "-"}</TD>
-                      <TD>{formatDateTime(entry.start_at)}</TD>
-                      <TD>{formatDateTime(entry.end_at)}</TD>
-                      <TD>{formatHours(entry.duration_seconds)}</TD>
-                      <TD className="max-w-[420px] truncate">{entry.description || "-"}</TD>
-                      <TD>
-                        <Badge variant={entry.is_running ? "warning" : "outline"}>
-                          {entry.is_running ? "em andamento" : "encerrado"}
-                        </Badge>
-                      </TD>
-                    </TR>
-                  ))}
-                  {timeEntries.length === 0 && (
-                    <TR>
-                      <TD colSpan={6} className="text-center text-sm text-muted-foreground">
-                        Nenhuma batida sincronizada para o periodo selecionado.
-                      </TD>
-                    </TR>
-                  )}
-                </TBody>
-              </Table>
-            </div>
-          </Card>
-        </div>
+        <TimeClockTab
+          meRole={me?.role}
+          clockifyConfig={clockifyConfig}
+          clockifyStatus={clockifyStatus}
+          clockifySyncResult={clockifySyncResult}
+          timeEntries={timeEntries}
+          empMap={empMap}
+          totalSyncedHours={totalSyncedHours}
+          runningEntriesCount={runningEntriesCount}
+          entriesFilterStart={entriesFilterStart}
+          entriesFilterEnd={entriesFilterEnd}
+          allowClosedClockifySync={allowClosedClockifySync}
+          savingClockify={savingClockify}
+          syncingClockify={syncingClockify}
+          onEntriesFilterStartChange={setEntriesFilterStart}
+          onEntriesFilterEndChange={setEntriesFilterEnd}
+          onAllowClosedSyncChange={setAllowClosedClockifySync}
+          onSaveClockifyConfig={saveClockifyConfig}
+          onSyncClockify={syncClockify}
+          onSyncInitial30Days={syncInitial30Days}
+          onRefreshTimeEntries={refreshTimeEntries}
+        />
       )}
 
       {tab === "banco" && (
@@ -1764,7 +1286,7 @@ export function HRPage() {
                       </TD>
                       <TD className="max-w-[320px] truncate">
                         {item.reason || "-"}
-                        {item.review_note ? ` · ${item.review_note}` : ""}
+                        {item.review_note ? ` Â· ${item.review_note}` : ""}
                       </TD>
                       <TD>
                         {item.reviewed_at ? formatDateTime(item.reviewed_at) : "aguardando"}
@@ -1976,7 +1498,7 @@ export function HRPage() {
           <Card id="form-colaborador-novo">
             <CardHeader className="mb-3">
               <CardTitle>Novo colaborador</CardTitle>
-              <CardDescription>Criar e já listar</CardDescription>
+              <CardDescription>Criar e jÃ¡ listar</CardDescription>
             </CardHeader>
             <form className="grid grid-cols-2 gap-3" onSubmit={createEmployee}>
               <div className="col-span-2">
@@ -2009,11 +1531,11 @@ export function HRPage() {
                 </Select>
               </div>
               <div>
-                <Label>Data de admissão</Label>
+                <Label>Data de admissÃ£o</Label>
                 <Input name="hire_date" type="date" />
               </div>
               <div>
-                <Label>Salário (centavos)</Label>
+                <Label>SalÃ¡rio (centavos)</Label>
                 <Input name="salary_cents" type="number" min={0} />
               </div>
               <div>
@@ -2028,7 +1550,7 @@ export function HRPage() {
                 </Select>
               </div>
               <div>
-                <Label>Posição</Label>
+                <Label>PosiÃ§Ã£o</Label>
                 <Select name="position_id" defaultValue="">
                   <option value="">(opcional)</option>
                   {positions.map((p) => (
@@ -2062,8 +1584,8 @@ export function HRPage() {
                   <TR>
                     <TH>Nome</TH>
                     <TH>Status</TH>
-                    <TH>Salário</TH>
-                    <TH>Contratação</TH>
+                    <TH>SalÃ¡rio</TH>
+                    <TH>ContrataÃ§Ã£o</TH>
                     <TH />
                   </TR>
                 </THead>
@@ -2081,7 +1603,7 @@ export function HRPage() {
                       <TD>
                         <div>{formatDate(e.hire_date)}</div>
                         {e.termination_date && (
-                          <div className="text-xs text-muted-foreground">Término: {formatDate(e.termination_date)}</div>
+                          <div className="text-xs text-muted-foreground">TÃ©rmino: {formatDate(e.termination_date)}</div>
                         )}
                       </TD>
                       <TD>
@@ -2109,7 +1631,7 @@ export function HRPage() {
               {selectedEmployee ? (
                 <form key={selectedEmployee.id} className="grid grid-cols-2 gap-3 p-4 pt-0" onSubmit={updateEmployee}>
                   <div className="col-span-2 text-sm text-muted-foreground">
-                    Código: {selectedEmployee.employee_code} · Criado em {formatDate(selectedEmployee.created_at)}
+                    CÃ³digo: {selectedEmployee.employee_code} Â· Criado em {formatDate(selectedEmployee.created_at)}
                   </div>
                   <div className="col-span-2">
                     <Label>Nome</Label>
@@ -2140,15 +1662,15 @@ export function HRPage() {
                     </Select>
                   </div>
                   <div>
-                    <Label>Admissão</Label>
+                    <Label>AdmissÃ£o</Label>
                     <Input name="hire_date" type="date" defaultValue={selectedEmployee.hire_date || ""} />
                   </div>
                   <div>
-                    <Label>Término</Label>
+                    <Label>TÃ©rmino</Label>
                     <Input name="termination_date" type="date" defaultValue={selectedEmployee.termination_date || ""} />
                   </div>
                   <div>
-                    <Label>Salário (centavos)</Label>
+                    <Label>SalÃ¡rio (centavos)</Label>
                     <Input name="salary_cents" type="number" min={0} defaultValue={selectedEmployee.salary_cents} />
                   </div>
                   <div>
@@ -2163,7 +1685,7 @@ export function HRPage() {
                     </Select>
                   </div>
                   <div>
-                    <Label>Posição</Label>
+                    <Label>PosiÃ§Ã£o</Label>
                     <Select name="position_id" defaultValue={selectedEmployee.position_id || ""}>
                       <option value="">(opcional)</option>
                       {positions.map((p) => (
@@ -2231,23 +1753,23 @@ export function HRPage() {
             <div className="grid gap-3 lg:grid-cols-2">
               <Card id="form-colaborador-remuneracao">
                 <CardHeader className="mb-2">
-                  <CardTitle>Remuneração</CardTitle>
-                  <CardDescription>Histórico + novo ajuste</CardDescription>
+                  <CardTitle>RemuneraÃ§Ã£o</CardTitle>
+                  <CardDescription>HistÃ³rico + novo ajuste</CardDescription>
                 </CardHeader>
                 {selectedEmployee ? (
                   <>
                     <form className="grid grid-cols-2 gap-2 px-4 pb-4" onSubmit={createCompensation}>
                       <div>
-                        <Label>Vigência</Label>
+                        <Label>VigÃªncia</Label>
                         <Input name="effective_at" type="date" required />
                       </div>
                       <div>
-                        <Label>Salário (centavos)</Label>
+                        <Label>SalÃ¡rio (centavos)</Label>
                         <Input name="salary_cents" type="number" min={0} required />
                       </div>
                       <div>
                         <Label>Tipo</Label>
-                        <Input name="adjustment_type" placeholder="promoção, mérito..." />
+                        <Input name="adjustment_type" placeholder="promoÃ§Ã£o, mÃ©rito..." />
                       </div>
                       <div className="col-span-2">
                         <Label>Nota</Label>
@@ -2263,8 +1785,8 @@ export function HRPage() {
                       <Table>
                         <THead>
                           <TR>
-                            <TH>Vigência</TH>
-                            <TH>Salário</TH>
+                            <TH>VigÃªncia</TH>
+                            <TH>SalÃ¡rio</TH>
                             <TH>Tipo</TH>
                           </TR>
                         </THead>
@@ -2287,14 +1809,14 @@ export function HRPage() {
 
               <Card id="form-colaborador-beneficios">
                 <CardHeader className="mb-2">
-                  <CardTitle>Benefícios</CardTitle>
+                  <CardTitle>BenefÃ­cios</CardTitle>
                   <CardDescription>Vincular e remover</CardDescription>
                 </CardHeader>
                 {selectedEmployee ? (
                   <>
                     <form className="grid grid-cols-2 gap-2 px-4 pb-4" onSubmit={assignBenefit}>
                       <div className="col-span-2">
-                        <Label>Benefício</Label>
+                        <Label>BenefÃ­cio</Label>
                         <Select name="benefit_id" defaultValue="" required>
                           <option value="" disabled>
                             Selecione
@@ -2307,7 +1829,7 @@ export function HRPage() {
                         </Select>
                       </div>
                       <div>
-                        <Label>Vigência</Label>
+                        <Label>VigÃªncia</Label>
                         <Input name="effective_date" type="date" />
                       </div>
                       <div className="col-span-2">
@@ -2317,7 +1839,7 @@ export function HRPage() {
                       </div>
                     </form>
                     <div className="max-h-48 overflow-auto px-4 pb-4 text-sm space-y-2">
-                      {employeeBenefits.length === 0 && <div className="text-muted-foreground">Nenhum benefício.</div>}
+                      {employeeBenefits.length === 0 && <div className="text-muted-foreground">Nenhum benefÃ­cio.</div>}
                       {employeeBenefits.map((b) => (
                         <div
                           key={`${b.benefit_id}-${b.employee_id}`}
@@ -2326,7 +1848,7 @@ export function HRPage() {
                           <div>
                             <div className="font-semibold">{b.name}</div>
                             <div className="text-xs text-muted-foreground">
-                              {b.effective_date ? `desde ${formatDate(b.effective_date)}` : "sem data"} · {formatCents(b.cost_cents)}
+                              {b.effective_date ? `desde ${formatDate(b.effective_date)}` : "sem data"} Â· {formatCents(b.cost_cents)}
                             </div>
                           </div>
                           <Button size="xs" variant="ghost" onClick={() => removeBenefit(b.benefit_id)}>
